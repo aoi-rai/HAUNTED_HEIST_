@@ -3,7 +3,7 @@
  *  機能	   ： 宝箱処理
  */
 #include "system1.h"
-
+#include <stdlib.h>
 /* 変数 */
 
 /* 

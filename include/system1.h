@@ -18,6 +18,8 @@ typedef struct {
     int playerdId;    // プレイヤーを識別する番号
     float positionX;  // X座標
     float positionY;  // Y座標
+    float directionX; // 向いている方向X
+    float directionY; // 向いている方向Y
     int isActive;     // 行動可能かどうか
     float stunTime;   // 行動不能の残り時間
     int hasTreasure;  // 本物のお宝を所持しているか
