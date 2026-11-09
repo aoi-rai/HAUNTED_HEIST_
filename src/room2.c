@@ -1,4 +1,4 @@
-#include "src/room2.h"
+#include "room2.h"
 
 // 各部屋の情報
 static Room rooms[ROOM_COUNT];
