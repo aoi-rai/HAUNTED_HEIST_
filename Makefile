@@ -16,7 +16,8 @@ SRCS = src/main.c \
        src/map2.c \
        src/map_random2.c \
        src/room2.c \
-       src/collision2.c
+       src/collision2.c \
+       src/network.c
 
 # オブジェクトファイル
 OBJS = $(SRCS:.c=.o)
