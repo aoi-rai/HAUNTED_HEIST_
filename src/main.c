@@ -5,6 +5,8 @@
 
 #include "model2.h"
 #include "room2.h"
+#include "controller1.h"
+#include "system1.h"
 
 int main(int argc, char *argv[])
 {
@@ -16,6 +18,9 @@ int main(int argc, char *argv[])
         printf("SDL初期化失敗: %s\n", SDL_GetError());
         return 1;
     }
+
+    // コントローラーの初期化
+    InitController();
 
     // OpenGLのバージョン設定
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
@@ -33,6 +38,7 @@ int main(int argc, char *argv[])
 
     if (window == NULL) {
         printf("ウィンドウ作成失敗: %s\n", SDL_GetError());
+        CloseController();
         SDL_Quit();
         return 1;
     }
@@ -43,6 +49,7 @@ int main(int argc, char *argv[])
     if (context == NULL) {
         printf("OpenGL初期化失敗: %s\n", SDL_GetError());
         SDL_DestroyWindow(window);
+        CloseController();
         SDL_Quit();
         return 1;
     }
@@ -70,11 +77,30 @@ int main(int argc, char *argv[])
                room.depth);
     }
 
+    // プレイヤーとカメラの初期化
+    Player player = {
+        .playerdId = 1,
+        .positionX = (float)(MAP_WIDTH / 2),
+        .positionY = (float)(MAP_HEIGHT / 2),
+        .positionZ = 0.0f,
+        .isActive = 1,
+        .dashCooldown = 0.0f
+    };
+
+    // メインループ用の時間計測変数
+    Uint32 lastTime = SDL_GetTicks();
+
     // メインループ
     int running = 1;
     SDL_Event event;
 
     while (running) {
+
+        // デルタタイム（経過時間）の計算
+        Uint32 currentTime = SDL_GetTicks();
+        float deltaTime = (currentTime - lastTime) / 1000.0f;
+        lastTime = currentTime;
+        if (deltaTime > 0.1f) deltaTime = 0.1f; // 極端なフレーム落ち防止
 
         // イベント処理
         while (SDL_PollEvent(&event)) {
@@ -82,6 +108,31 @@ int main(int argc, char *argv[])
                 running = 0;
             }
         }
+
+        // コントローラー入力の取得
+        float inputX = 0.0f, inputY = 0.0f, rightStickX = 0.0f;
+        int dashPressed = 0, jumpPressed = 0;
+        PollControllerInput(&inputX, &inputY, &rightStickX, &dashPressed, &jumpPressed);
+
+        // プレイヤー・アクションの更新
+        UpdatePlayer(&player, deltaTime);
+
+        // ダッシュ・ジャンプのトリガー入力処理
+        if (dashPressed) {
+            StartDash(&player);
+        }
+        if (jumpPressed) {
+            TriggerJump(&player);
+        }
+
+        // プレイヤーの移動処理
+        MovePlayer(&player, inputX, inputY, deltaTime);
+
+        // カメラの更新処理
+        Camera *cam;
+        UpdateCamera(&player, &cam, rightStickX, deltaTime);
+
+        // 画面の描画
 
         // 画面の描画
         glClear(GL_COLOR_BUFFER_BIT);

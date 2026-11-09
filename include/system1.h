@@ -1,5 +1,5 @@
 /*
- *  ファイル名	: system.h
+ *  ファイル名	: system1.h
  *  機能	: 共通変数，外部関数の定義
  */
 
@@ -15,15 +15,21 @@
 
 /* プレイヤー構造体 */
 typedef struct {
-    int playerdId;    // プレイヤーを識別する番号
-    float positionX;  // X座標
-    float positionY;  // Y座標
-    float directionX; // 向いている方向X
-    float directionY; // 向いている方向Y
-    int isActive;     // 行動可能かどうか
-    float stunTime;   // 行動不能の残り時間
-    int hasTreasure;  // 本物のお宝を所持しているか
-    int haskey;       // 鍵を所持しているか
+    int playerdId;      // プレイヤーを識別する番号
+    float positionX;    // X座標
+    float positionY;    // Y座標
+    float positionZ;    // 高さ（Z軸またはジャンプ用高度）
+    float directionX;   // 向いている方向X
+    float directionY;   // 向いている方向Y
+    float velocityZ;    // 垂直方向の速度（ジャンプ用）
+    int isJumping;      // ジャンプ中かどうか
+    int isDashing;      // ダッシュ中かどうか
+    float dashTimer;    // ダッシュ継続時間の残り
+    float dashCooldown; // 再使用までのクールダウン残り
+    int isActive;       // 行動可能かどうか
+    float stunTime;     // 行動不能の残り時間
+    int hasTreasure;    // 本物のお宝を所持しているか
+    int haskey;         // 鍵を所持しているか
 } Player;
 
 /* NPC構造体 */
@@ -61,4 +67,4 @@ typedef struct {
     float angle;     // 角度
 } Camera;
 
-/* end of system.h */
+/* end of system1.h */

@@ -25,6 +25,45 @@ void UpdatePlayer(Player *player, float deltaTime){
         }
         return;
     }
+
+    // ダッシュ継続時間の処理
+    if (player->isDashing) {
+        player->dashTimer -= deltaTime;
+        if (player->dashTimer <= 0.0f) {
+            player->isDashing = 0;      // ダッシュ終了
+            player->dashCooldown = 3.0f; // 再使用クールダウン設定 (GT06-04: 例として3秒)
+        }
+    }
+
+    // ダッシュのクールダウン処理
+    if (player->dashCooldown > 0.0f) {
+        player->dashCooldown -= deltaTime;
+    }
+}
+
+/* 
+    関数名： StartDash()
+    機能  ： ダッシュを開始する条件と設定 (GT06-01, GT06-04, GT06-09)
+*/
+void StartDash(Player *player) {
+    if (!player->isActive) return;     // 操作不能中の使用禁止 (GT06-09)
+    if (player->dashCooldown > 0.0f) return; // クールダウン中は再使用不可 (GT06-04)
+    if (player->isDashing) return;
+
+    player->isDashing = 1;
+    player->dashTimer = 2.0f;          // 継続時間設定 (GT06-03: 例として2秒間)
+}
+
+/* 
+    関数名： TriggerJump()
+    機能  ： ジャンプを開始する (GT06-06, GT06-07, GT06-09)
+*/
+void TriggerJump(Player *player) {
+    if (!player->isActive) return;     // 操作不能中の使用禁止 (GT06-09)
+    if (player->isJumping) return;     // すでにジャンプ中は二段ジャンプ不可など
+
+    player->isJumping = 1;
+    player->velocityZ = 300.0f;        // ジャンプの初速度（高さ調整: GT06-07）
 }
 
 /* 
@@ -50,9 +89,27 @@ void MovePlayer(Player *player, float inputX, float inputY, float deltaTime){
         player->directionY = inputY;
     }
 
-    float moveSpeed = 200.0f; // 移動速度設定
+    // 基本移動速度 ＋ ダッシュ時の速度倍率適用 (GT06-01, GT06-02)
+    float moveSpeed = 200.0f;
+    if (player->isDashing) {
+        moveSpeed *= 1.8f; // ダッシュ時は速度を1.8倍にする（GT06-02）
+    }
+
     player->positionX += inputX * moveSpeed * deltaTime;
     player->positionY += inputY * moveSpeed * deltaTime;
+
+    // ジャンプ・高さの更新処理 (GT06-06, GT06-07)
+    if (player->isJumping) {
+        player->positionZ += player->velocityZ * deltaTime;
+        player->velocityZ -= 980.0f * deltaTime; // 重力加速度の適用
+
+        // 地面（Z = 0）に着地した判定
+        if (player->positionZ <= 0.0f) {
+            player->positionZ = 0.0f;
+            player->isJumping = 0;
+            player->velocityZ = 0.0f;
+        }
+    }
 
     // 壁やマップ端の衝突判定
     if (player->positionX < 0.0f) player->positionX = 0.0f;
