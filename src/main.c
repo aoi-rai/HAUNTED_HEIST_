@@ -62,6 +62,12 @@ int main(int argc, char *argv[])
 
     printf("HAUNTED HEIST 起動\n");
 
+    // 大広間モデルの読み込み確認
+    LoadModel("models/mansion/oohiroma.fbx");
+
+    // 小部屋モデルの読み込み確認
+    LoadModel("models/mansion/kobeya.fbx");
+
     // 部屋の初期化
     InitRooms();
 
