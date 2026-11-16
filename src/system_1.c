@@ -4,6 +4,8 @@
  */
 #include "system1.h"
 
+#include <math.h>
+
 /* 変数 */
 
 /* 関数 */
@@ -203,7 +205,10 @@ void UpdateCameraRotation(Camera *cam, float rightStickX, float deltaTime) {
     引数  ： target：通報対象番号
     返り値： なし
 */
-void ReportTarget(Player *target){
+void ReportTarget(Player *reporter, Player *target){
+
+    (void)reporter;  // 現時点では未使用
+
     // 通報者が正しく対象を指している場合の処理
     ProcessReport(target, 5.0f); // 5秒間のスタン（行動不能）を与える
 }

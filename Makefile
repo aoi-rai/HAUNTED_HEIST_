@@ -1,11 +1,10 @@
-
 CC = gcc
 
 # コンパイル設定
 CFLAGS = -Wall -Wextra -Iinclude `sdl2-config --cflags`
 
 # リンク設定
-LIBS = `sdl2-config --libs` -lassimp -lGL -lGLEW
+LIBS = `sdl2-config --libs` -lassimp -lGL -lGLEW -lm
 
 # 実行ファイル名
 TARGET = haunted_heist
@@ -16,9 +15,12 @@ SRCS = src/main.c \
        src/map2.c \
        src/map_random2.c \
        src/room2.c \
+       src/furniture2.c \
        src/collision2.c \
        src/controller1.c \
-       src/shader2.c
+       src/shader2.c \
+       src/system_1.c \
+       src/network.c
 
 # オブジェクトファイル
 OBJS = $(SRCS:.c=.o)
