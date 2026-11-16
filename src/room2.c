@@ -1,15 +1,16 @@
 #include "room2.h"
+#include "map_random2.h"
 
 // 各部屋の情報
 static Room rooms[ROOM_COUNT];
 
-// 部屋の初期化
+// 最初の固定配置
 void InitRooms(void)
 {
-    // 中央の大広間（4×4マスの中央2×2）
+    // 中央の大広間
     rooms[0] = (Room){0, 0.0f, 0.0f, 20.0f, 20.0f};
 
-    // 周囲12部屋の配置
+    // 周囲12部屋
     rooms[1]  = (Room){1, -15.0f, -15.0f, 10.0f, 10.0f};
     rooms[2]  = (Room){2,  -5.0f, -15.0f, 10.0f, 10.0f};
     rooms[3]  = (Room){3,   5.0f, -15.0f, 10.0f, 10.0f};
@@ -27,6 +28,12 @@ void InitRooms(void)
     rooms[12] = (Room){12, 15.0f,  15.0f, 10.0f, 10.0f};
 }
 
+// 小部屋の配置を再ランダム化
+void RandomizeRooms(void)
+{
+    RandomizeRoomPositions(rooms);
+}
+
 // 部屋の情報を取得
 Room GetRoom(int roomID)
 {
@@ -36,3 +43,34 @@ Room GetRoom(int roomID)
 
     return rooms[roomID];
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
