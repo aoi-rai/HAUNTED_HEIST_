@@ -18,7 +18,7 @@ static int player_id = -1;
 int Network_InitServer(int port)
 {
     struct sockaddr_in server_addr;
-    server_fd = soclet(AF_INET, SOCK_STREAM, 0);
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if(server_fd < 0){
         perror("socket");
         return -1;

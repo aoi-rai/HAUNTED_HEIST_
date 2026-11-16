@@ -1,7 +1,7 @@
 #ifndef MAP_H
 #define MAP_H
 
-#include "room.h"
+#include "room2.h"
 
 // マップの初期化
 void InitMap(void);
