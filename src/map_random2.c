@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -14,7 +15,7 @@ static int IsCenterCell(int row, int col)
            (col == 2 || col == 3);
 }
 
-// グリッド内で、配置可能なマスかどうか
+// 配置可能なマスかどうか
 static int IsValidCell(int row, int col)
 {
     if (row < 0 || row >= GRID_SIZE ||
@@ -22,17 +23,12 @@ static int IsValidCell(int row, int col)
         return 0;
     }
 
-    if (IsCenterCell(row, col)) {
-        return 0;
-    }
-
-    return 1;
+    return !IsCenterCell(row, col);
 }
 
 // 小部屋の配置をランダムに決定
 void RandomizeRoomPositions(Room rooms[ROOM_COUNT])
 {
-    // 配置済みマス
     int selected[GRID_SIZE][GRID_SIZE] = {0};
 
     // 大広間に隣接する8か所
@@ -43,7 +39,7 @@ void RandomizeRoomPositions(Room rooms[ROOM_COUNT])
         {2, 4}, {3, 4}
     };
 
-    // 最初の部屋をランダムに決定
+    // 最初の部屋を決定
     int start = rand() % 8;
 
     int row = startCells[start][0];
@@ -51,31 +47,27 @@ void RandomizeRoomPositions(Room rooms[ROOM_COUNT])
 
     selected[row][col] = 1;
 
-    // 選択済み部屋数
     int selectedCount = 1;
 
     // 12部屋になるまで配置
     while (selectedCount < SMALL_ROOM_COUNT) {
 
-        // 次に配置できる候補
         int frontier[GRID_SIZE * GRID_SIZE][2];
         int frontierCount = 0;
 
-        // 配置済みの部屋を調べる
+        const int directions[4][2] = {
+            {-1, 0},
+            {1, 0},
+            {0, -1},
+            {0, 1}
+        };
+
         for (int r = 0; r < GRID_SIZE; r++) {
             for (int c = 0; c < GRID_SIZE; c++) {
 
                 if (!selected[r][c]) {
                     continue;
                 }
-
-                // 上下左右の4方向
-                const int directions[4][2] = {
-                    {-1, 0},
-                    {1, 0},
-                    {0, -1},
-                    {0, 1}
-                };
 
                 for (int d = 0; d < 4; d++) {
 
@@ -90,7 +82,6 @@ void RandomizeRoomPositions(Room rooms[ROOM_COUNT])
                         continue;
                     }
 
-                    // 候補の重複を確認
                     int duplicate = 0;
 
                     for (int k = 0; k < frontierCount; k++) {
@@ -110,13 +101,11 @@ void RandomizeRoomPositions(Room rooms[ROOM_COUNT])
             }
         }
 
-        // 候補がなくなった場合
         if (frontierCount == 0) {
             printf("ランダム配置に失敗しました\n");
             return;
         }
 
-        // 候補から1か所をランダムに選ぶ
         int choice = rand() % frontierCount;
 
         row = frontier[choice][0];
@@ -126,8 +115,9 @@ void RandomizeRoomPositions(Room rooms[ROOM_COUNT])
         selectedCount++;
     }
 
-    // 選択した座標を部屋情報に反映
-    int roomID = 1;
+    // 選択した12マスを配列に保存
+    int cells[SMALL_ROOM_COUNT][2];
+    int cellCount = 0;
 
     for (int r = 0; r < GRID_SIZE; r++) {
         for (int c = 0; c < GRID_SIZE; c++) {
@@ -136,28 +126,56 @@ void RandomizeRoomPositions(Room rooms[ROOM_COUNT])
                 continue;
             }
 
-            float x = (c - 2.5f) * ROOM_SIZE;
-            float z = (r - 2.5f) * ROOM_SIZE;
-
-            rooms[roomID] = (Room){
-                roomID,
-                x,
-                z,
-                ROOM_SIZE,
-                ROOM_SIZE
-            };
-
-            printf(
-                "ランダム配置 部屋%d: X=%.1f Z=%.1f\n",
-                roomID,
-                x,
-                z
-            );
-
-            roomID++;
+            cells[cellCount][0] = r;
+            cells[cellCount][1] = c;
+            cellCount++;
         }
     }
 
-    printf("小部屋のランダム配置完了: %d部屋\n",
-           selectedCount);
+    // 部屋IDと配置先の対応をランダムにする
+    for (int i = SMALL_ROOM_COUNT - 1; i > 0; i--) {
+
+        int j = rand() % (i + 1);
+
+        int tempRow = cells[i][0];
+        int tempCol = cells[i][1];
+
+        cells[i][0] = cells[j][0];
+        cells[i][1] = cells[j][1];
+
+        cells[j][0] = tempRow;
+        cells[j][1] = tempCol;
+    }
+
+    // 部屋IDを維持して座標だけ変更
+    for (int roomID = 1; roomID < ROOM_COUNT; roomID++) {
+
+        int index = roomID - 1;
+
+        int r = cells[index][0];
+        int c = cells[index][1];
+
+        rooms[roomID].roomID = roomID;
+
+        rooms[roomID].x =
+            (c - 2.5f) * ROOM_SIZE;
+
+        rooms[roomID].z =
+            (r - 2.5f) * ROOM_SIZE;
+
+        rooms[roomID].width = ROOM_SIZE;
+        rooms[roomID].depth = ROOM_SIZE;
+
+        printf(
+            "ランダム配置 部屋%d: X=%.1f Z=%.1f\n",
+            roomID,
+            rooms[roomID].x,
+            rooms[roomID].z
+        );
+    }
+
+    printf(
+        "小部屋のランダム配置完了: %d部屋\n",
+        selectedCount
+    );
 }
