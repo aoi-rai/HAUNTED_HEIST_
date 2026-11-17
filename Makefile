@@ -4,7 +4,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -Iinclude `sdl2-config --cflags`
 
 # リンク設定
-LIBS = `sdl2-config --libs` -lassimp -lGL -lGLEW -lm
+LIBS = `sdl2-config --libs` -lSDL2_image -lassimp -lGL -lGLEW -lm
 
 # 実行ファイル名
 TARGET = haunted_heist
@@ -19,6 +19,7 @@ SRCS = src/main.c \
        src/collision2.c \
        src/shader2.c \
        src/system_1.c \
+       src/npc2.c \
        src/network.c
 
 # オブジェクトファイル

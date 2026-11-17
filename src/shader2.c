@@ -95,6 +95,7 @@ unsigned int LoadShaders(
 
     glBindAttribLocation(program, 0, "position");
     glBindAttribLocation(program, 1, "normal");
+    glBindAttribLocation(program, 2, "texCoord");
 
     glLinkProgram(program);
 
