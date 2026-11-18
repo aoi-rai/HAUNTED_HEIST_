@@ -27,10 +27,10 @@ int SetRemotePlayerState(
     float direction
 )
 {
-    // 無効なプレイヤーIDを拒否
-    if (playerID < 0) {
-        return 0;
-    }
+    // 無効なプレイヤーIDを拒否（サーバーIDは1～4）
+if (playerID < 1 || playerID > 4) {
+    return 0;
+}
 
     int slot = -1;
 

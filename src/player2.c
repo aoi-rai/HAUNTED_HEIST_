@@ -17,12 +17,11 @@ void UpdatePlayerMovement(
     float *playerDirection,
     float *playerTargetDirection
 ) {
-    // カメラの向きにプレイヤーの向きを合わせる
-    *playerTargetDirection = atan2f(
-        -cosf(cameraYaw),
-        -sinf(cameraYaw)
-    );
-
+// カメラの向きにプレイヤーの向きを合わせる
+*playerTargetDirection = atan2f(
+    cosf(cameraYaw),
+    -sinf(cameraYaw)
+);
     // 方向キーによる移動
     float moveX = 0.0f;
     float moveZ = 0.0f;
