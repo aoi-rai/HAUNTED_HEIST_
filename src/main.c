@@ -120,9 +120,13 @@ int main(int argc, char *argv[])
     GameInitData game;
     InitGameState(&game, shaderProgram);
 
+int networkConnected = 0;
+
 if (Network_Connect("127.0.0.1", 50000) < 0) {
     printf("サーバーへの接続に失敗しました。\n");
 } else {
+    networkConnected = 1;
+
     printf("サーバーへの接続に成功しました。プレイヤーID：%d\n",
            Network_GetPlayerID());
 }
@@ -152,6 +156,7 @@ if (Network_Connect("127.0.0.1", 50000) < 0) {
 
 
     Uint32 previousTime = SDL_GetTicks();
+    Uint32 lastNetworkSend = SDL_GetTicks();
 
     while (running) {
 
@@ -183,6 +188,88 @@ if (Network_Connect("127.0.0.1", 50000) < 0) {
             &lastMapChange,
             MAP_CHANGE_INTERVAL
         );
+
+        // ====================================
+// ネットワーク通信
+// ====================================
+if (networkConnected) {
+
+    // 100ミリ秒ごとに自分の位置を送信
+    if (currentTime - lastNetworkSend >= 100) {
+
+        char sendBuffer[160];
+
+        snprintf(
+            sendBuffer,
+            sizeof(sendBuffer),
+            "STATE,%d,%.3f,%.3f,%.3f,%.3f\n",
+            Network_GetPlayerID(),
+            playerX,
+            playerY,
+            playerZ,
+            playerDirection
+        );
+
+        if (Network_Send(sendBuffer) < 0) {
+            printf("位置情報の送信に失敗しました。\n");
+            networkConnected = 0;
+        }
+
+        lastNetworkSend = currentTime;
+    }
+
+    // 他プレイヤーの位置情報を受信
+    if (networkConnected) {
+        char receiveBuffer[256];
+        int received;
+
+        while ((received = Network_Receive(
+            receiveBuffer,
+            sizeof(receiveBuffer)
+        )) > 0) {
+
+            int senderID;
+            int dataPlayerID;
+
+            float x, y, z, direction;
+
+            // サーバーから届く形式：
+            // Player 2: STATE,2,1.000,0.000,2.000,90.000
+
+            if (sscanf(
+                receiveBuffer,
+                "Player %d: STATE,%d,%f,%f,%f,%f",
+                &senderID,
+                &dataPlayerID,
+                &x,
+                &y,
+                &z,
+                &direction
+            ) == 6) {
+
+                // 自分以外のプレイヤーだけ更新
+                if (senderID != Network_GetPlayerID()
+                    && senderID == dataPlayerID
+                    && senderID >= 1
+                    && senderID <= 4) {
+
+                    SetRemotePlayerState(
+                        senderID,
+                        x,
+                        y,
+                        z,
+                        direction
+                    );
+                }
+            }
+        }
+
+        if (received < 0) {
+            printf("サーバーとの通信が終了しました。\n");
+            networkConnected = 0;
+        }
+    }
+}
 
         // Spaceキーで選択中のNPCにアクション
 // 行動不能中はアクションできない
