@@ -10,4 +10,12 @@ unsigned int LoadShaders(
 // シェーダーの解放
 void FreeShaders(unsigned int programID);
 
+// シェーダーにカメラ行列を設定
+void SetShaderMatrices(
+    unsigned int shaderProgram,
+    const float view[16],
+    const float projection[16]
+);
+
+
 #endif

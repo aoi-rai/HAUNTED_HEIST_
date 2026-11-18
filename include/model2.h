@@ -38,4 +38,20 @@ void DrawModelAtRotatedOutline(
 // モデルの解放
 void FreeModel(int modelID);
 
+#define GRASS_COUNT 400
+
+typedef struct {
+    float x;
+    float z;
+    float scale;
+    float rotation;
+} GrassPosition;
+
+typedef struct {
+    float x;
+    float z;
+    float rotation;
+    float scale;
+} TreePosition;
+
 #endif

@@ -1,0 +1,7 @@
+#ifndef GAME_INIT2_H
+#define GAME_INIT2_H
+
+// ゲームワールド全体の初期化
+int InitGameWorld(void);
+
+#endif

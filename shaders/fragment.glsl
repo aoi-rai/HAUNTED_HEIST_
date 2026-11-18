@@ -1,4 +1,3 @@
-
 #version 120
 
 varying vec3 vNormal;
@@ -7,6 +6,7 @@ varying vec2 vTexCoord;
 uniform vec4 materialColor;
 uniform sampler2D diffuseTexture;
 uniform int useTexture;
+uniform int alphaCutout;
 
 void main()
 {
@@ -19,6 +19,11 @@ void main()
 
     if (useTexture == 1) {
         baseColor *= texture2D(diffuseTexture, vTexCoord);
+    }
+
+    // 葉っぱの透明部分を描画しない
+    if (alphaCutout == 1 && baseColor.a < 0.5) {
+        discard;
     }
 
     vec3 color = baseColor.rgb * diffuse;

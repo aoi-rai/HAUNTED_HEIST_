@@ -1,0 +1,548 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+
+#include "npc2.h"
+#include "room2.h"
+
+#define SPAWN_MARGIN 1.0f
+#define MIN_DISTANCE 2.0f
+#define MAX_ATTEMPTS 1000
+
+#define NPC_SPEED_MIN 1.0f
+#define NPC_SPEED_MAX 2.0f
+
+// NPCの方向転換速度（ラジアン/秒）
+#define NPC_TURN_SPEED 3.0f
+
+#define TARGET_CHANGE_MIN 2.0f
+#define TARGET_CHANGE_MAX 5.0f
+
+// 浮遊設定
+#define FLOAT_HEIGHT 4.0f
+#define FLOAT_AMPLITUDE 1.5f
+#define FLOAT_SPEED 1.0f
+
+#define WALK_TIME_MIN 3.0f
+#define WALK_TIME_MAX 7.0f
+
+#define STOP_TIME_MIN 1.0f
+#define STOP_TIME_MAX 3.0f
+
+#define FLOAT_INTERVAL_MIN 4.0f
+#define FLOAT_INTERVAL_MAX 8.0f
+
+#define FLOAT_DURATION_MIN 2.0f
+#define FLOAT_DURATION_MAX 4.0f
+
+static float npcFloatTime[NPC_COUNT];
+
+static NPC npcs[NPC_COUNT];
+
+// 各NPCの移動先の部屋
+static int targetRoomIDs[NPC_COUNT];
+
+static float playerStartX = 0.0f;
+static float playerStartY = 0.0f;
+static float playerStartZ = 0.0f;
+
+// 乱数を指定範囲で取得
+static float RandomFloat(float min, float max)
+{
+    return min +
+        ((float)rand() / (float)RAND_MAX) * (max - min);
+}
+
+// 距離の二乗
+static float DistanceSquared(
+    float x1, float z1,
+    float x2, float z2
+)
+{
+    float dx = x1 - x2;
+    float dz = z1 - z2;
+
+    return dx * dx + dz * dz;
+}
+
+// 部屋の中からランダムな位置を取得
+static void GetRandomPositionInRoom(
+    Room room,
+    float *x,
+    float *z
+)
+{
+    float halfWidth = room.width / 2.0f;
+    float halfDepth = room.depth / 2.0f;
+
+    *x = RandomFloat(
+        room.x - halfWidth + SPAWN_MARGIN,
+        room.x + halfWidth - SPAWN_MARGIN
+    );
+
+    *z = RandomFloat(
+        room.z - halfDepth + SPAWN_MARGIN,
+        room.z + halfDepth - SPAWN_MARGIN
+    );
+}
+
+// 初期位置がほかのキャラクターと重ならないか確認
+static int IsPositionAvailable(
+    float x,
+    float z,
+    int placedCount
+)
+{
+    float minDistanceSquared = MIN_DISTANCE * MIN_DISTANCE;
+
+    // プレイヤーとの距離
+    if (DistanceSquared(
+            x, z,
+            playerStartX, playerStartZ
+        ) < minDistanceSquared) {
+        return 0;
+    }
+
+    // 配置済みNPCとの距離
+    for (int i = 0; i < placedCount; i++) {
+        if (DistanceSquared(
+                x, z,
+                npcs[i].x, npcs[i].z
+            ) < minDistanceSquared) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+// 部屋の中から重ならない初期位置を探す
+static int FindSpawnPosition(
+    Room room,
+    int placedCount,
+    float *x,
+    float *z
+)
+{
+    for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+
+        float candidateX;
+        float candidateZ;
+
+        GetRandomPositionInRoom(
+            room,
+            &candidateX,
+            &candidateZ
+        );
+
+        if (IsPositionAvailable(
+                candidateX,
+                candidateZ,
+                placedCount
+            )) {
+
+            *x = candidateX;
+            *z = candidateZ;
+
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+// NPCの配置先の部屋を均等に割り振る
+static void CreateRoomAssignments(int assignments[NPC_COUNT])
+{
+    // まず各部屋に順番に割り振る
+    for (int i = 0; i < NPC_COUNT; i++) {
+        assignments[i] = i % ROOM_COUNT;
+    }
+
+    // 部屋の割り当て順をシャッフルする
+    for (int i = NPC_COUNT - 1; i > 0; i--) {
+        int j = rand() % (i + 1);
+
+        int temp = assignments[i];
+        assignments[i] = assignments[j];
+        assignments[j] = temp;
+    }
+}
+
+// 新しい移動目標を設定
+static void SetNewTarget(int npcID)
+{
+    NPC *npc = &npcs[npcID];
+
+    // 現在いる部屋とは別の部屋を選ぶ
+    int roomID = npc->roomID;
+
+    if (ROOM_COUNT > 1) {
+        while (roomID == npc->roomID) {
+            roomID = rand() % ROOM_COUNT;
+        }
+    }
+
+    Room targetRoom = GetRoom(roomID);
+
+    // 選んだ部屋の中から移動先を決める
+    GetRandomPositionInRoom(
+        targetRoom,
+        &npc->targetX,
+        &npc->targetZ
+    );
+
+    targetRoomIDs[npcID] = roomID;
+
+   // 移動方向を設定
+float dx = npc->targetX - npc->x;
+float dz = npc->targetZ - npc->z;
+
+// 次に向きたい方向を設定
+npc->targetDirection = atan2f(-dz, dx);
+
+    // 移動にかかる時間を考慮してタイマーを設定
+    float distance = sqrtf(dx * dx + dz * dz);
+
+    npc->moveTimer =
+        distance / npc->speed +
+        RandomFloat(TARGET_CHANGE_MIN, TARGET_CHANGE_MAX);
+}
+
+// NPCの初期化
+void InitNPCs(void)
+{
+    // プレイヤーの開始部屋をランダムに選択
+    int playerRoomID = rand() % ROOM_COUNT;
+    Room playerRoom = GetRoom(playerRoomID);
+
+    // プレイヤーの開始位置をランダムに決定
+    GetRandomPositionInRoom(
+        playerRoom,
+        &playerStartX,
+        &playerStartZ
+    );
+
+    playerStartY = 0.0f;
+
+    // NPCの配置先を均等に割り振る
+    int roomAssignments[NPC_COUNT];
+
+    CreateRoomAssignments(roomAssignments);
+
+    // NPCを初期配置
+    for (int i = 0; i < NPC_COUNT; i++) {
+
+        // NPCの種類を設定
+        if (i < NORMAL_GHOST_COUNT) {
+            npcs[i].type = GHOST_NORMAL;
+        }
+        else if (i <
+            NORMAL_GHOST_COUNT + REAL_TREASURE_GHOST_COUNT) {
+            npcs[i].type = GHOST_REAL_TREASURE;
+        }
+        else {
+            npcs[i].type = GHOST_FAKE_TREASURE;
+        }
+
+if (i < 6) {
+    npcs[i].behaviorType = NPC_BEHAVIOR_FLOAT;
+}
+else if (i < 13) {
+    npcs[i].behaviorType = NPC_BEHAVIOR_WALK;
+}
+else if (i < 20) {
+    npcs[i].behaviorType = NPC_BEHAVIOR_WALK_STOP;
+}
+else if (i < 26) {
+    npcs[i].behaviorType = NPC_BEHAVIOR_WALK_FLOAT;
+}
+else if (i < 32) {
+    npcs[i].behaviorType = NPC_BEHAVIOR_ALL;
+}
+else {
+    // お宝関連NPC
+    npcs[i].behaviorType = NPC_BEHAVIOR_WALK;
+}
+
+        int roomID = roomAssignments[i];
+        Room room = GetRoom(roomID);
+
+        float x;
+        float z;
+
+        if (!FindSpawnPosition(room, i, &x, &z)) {
+            printf(
+                "NPC %d の初期配置に失敗しました。\n",
+                i
+            );
+            return;
+        }
+
+        npcs[i].x = x;
+        npcs[i].y = 0.0f;
+
+// 浮遊アニメーションの開始時間をずらす
+npcFloatTime[i] = RandomFloat(0.0f, 6.28f);
+        npcs[i].z = z;
+        npcs[i].roomID = roomID;
+
+        npcs[i].isFloating = 0;
+npcs[i].floatTimer = RandomFloat(
+    FLOAT_INTERVAL_MIN,
+    FLOAT_INTERVAL_MAX
+);
+
+        // 歩行・静止状態を初期化
+npcs[i].isStopped = 0;
+npcs[i].actionTimer = RandomFloat(
+    WALK_TIME_MIN,
+    WALK_TIME_MAX
+);
+
+        npcs[i].speed = RandomFloat(
+            NPC_SPEED_MIN,
+            NPC_SPEED_MAX
+        );
+
+        // 最初の移動先を設定
+SetNewTarget(i);
+
+// 起動直後は最初の移動先を向かせる
+npcs[i].direction = npcs[i].targetDirection;
+    }
+
+    printf("プレイヤーの開始部屋: %d\n", playerRoomID);
+
+    printf("NPC %d体の初期配置が完了しました。\n", NPC_COUNT);
+    printf("通常おばけ: %d体\n", NORMAL_GHOST_COUNT);
+    printf("宝箱持ち: %d体\n", REAL_TREASURE_GHOST_COUNT);
+    printf("ダミー: %d体\n", FAKE_TREASURE_GHOST_COUNT);
+}
+
+
+// NPCの移動更新
+void UpdateNPCs(float deltaTime)
+{
+    for (int i = 0; i < NPC_COUNT; i++) {
+
+        NPC *npc = &npcs[i];
+
+        // --------------------------------
+        // 歩行と停止を繰り返すNPC
+        // --------------------------------
+        if (npc->behaviorType == NPC_BEHAVIOR_WALK_STOP ||
+            npc->behaviorType == NPC_BEHAVIOR_ALL) {
+
+            npc->actionTimer -= deltaTime;
+
+            if (npc->isStopped) {
+
+                // 停止時間が終了したら歩行再開
+                if (npc->actionTimer <= 0.0f) {
+
+                    npc->isStopped = 0;
+
+                    npc->actionTimer = RandomFloat(
+                        WALK_TIME_MIN,
+                        WALK_TIME_MAX
+                    );
+
+                    SetNewTarget(i);
+                }
+                else {
+                    // 停止中は移動しない
+                    continue;
+                }
+            }
+            else if (npc->actionTimer <= 0.0f) {
+
+                // 歩行を停止
+                npc->isStopped = 1;
+
+                npc->actionTimer = RandomFloat(
+                    STOP_TIME_MIN,
+                    STOP_TIME_MAX
+                );
+
+                continue;
+            }
+        }
+
+        // --------------------------------
+        // 滑らかに方向転換
+        // --------------------------------
+        float angleDiff =
+            npc->targetDirection - npc->direction;
+
+        angleDiff = atan2f(
+            sinf(angleDiff),
+            cosf(angleDiff)
+        );
+
+        float turnAmount = NPC_TURN_SPEED * deltaTime;
+
+        if (fabsf(angleDiff) <= turnAmount) {
+            npc->direction = npc->targetDirection;
+        }
+        else {
+            npc->direction +=
+                (angleDiff > 0.0f ? turnAmount : -turnAmount);
+        }
+
+        // --------------------------------
+        // 常に浮遊するNPC
+        // --------------------------------
+        if (npc->behaviorType == NPC_BEHAVIOR_FLOAT) {
+
+            npcFloatTime[i] += deltaTime * FLOAT_SPEED;
+
+            npc->y = FLOAT_HEIGHT +
+                sinf(npcFloatTime[i]) * FLOAT_AMPLITUDE;
+        }
+
+        // --------------------------------
+        // 時々浮遊するNPC
+        // --------------------------------
+        else if (npc->behaviorType == NPC_BEHAVIOR_WALK_FLOAT ||
+                 npc->behaviorType == NPC_BEHAVIOR_ALL) {
+
+            npc->floatTimer -= deltaTime;
+
+            if (!npc->isFloating && npc->floatTimer <= 0.0f) {
+
+                npc->isFloating = 1;
+
+                npc->floatTimer = RandomFloat(
+                    FLOAT_DURATION_MIN,
+                    FLOAT_DURATION_MAX
+                );
+            }
+            else if (npc->isFloating && npc->floatTimer <= 0.0f) {
+
+                npc->isFloating = 0;
+                npc->y = 0.0f;
+
+                npc->floatTimer = RandomFloat(
+                    FLOAT_INTERVAL_MIN,
+                    FLOAT_INTERVAL_MAX
+                );
+            }
+
+            if (npc->isFloating) {
+
+                npcFloatTime[i] += deltaTime * FLOAT_SPEED;
+
+                npc->y = FLOAT_HEIGHT +
+                    sinf(npcFloatTime[i]) * FLOAT_AMPLITUDE;
+            }
+            else {
+                npc->y = 0.0f;
+            }
+        }
+
+        // --------------------------------
+        // 移動処理
+        // --------------------------------
+        npc->moveTimer -= deltaTime;
+
+        float dx = npc->targetX - npc->x;
+        float dz = npc->targetZ - npc->z;
+
+        float distance = sqrtf(dx * dx + dz * dz);
+
+        // 移動先に到着
+        if (distance < 0.2f) {
+
+            npc->x = npc->targetX;
+            npc->z = npc->targetZ;
+
+            npc->roomID = targetRoomIDs[i];
+
+            SetNewTarget(i);
+            continue;
+        }
+
+        // 移動タイマー終了
+        if (npc->moveTimer <= 0.0f) {
+            SetNewTarget(i);
+            continue;
+        }
+
+        // 目標方向へ移動
+        if (distance > 0.0f) {
+
+            float moveDistance = npc->speed * deltaTime;
+
+            if (moveDistance > distance) {
+                moveDistance = distance;
+            }
+
+            npc->x += (dx / distance) * moveDistance;
+            npc->z += (dz / distance) * moveDistance;
+        }
+    }
+}
+
+
+
+// NPC情報を取得
+NPC GetNPC(int npcID)
+{
+    if (npcID < 0 || npcID >= NPC_COUNT) {
+        return (NPC){0};
+    }
+
+    return npcs[npcID];
+}
+
+// プレイヤー初期位置を取得
+void GetPlayerStartPosition(
+    float *x,
+    float *y,
+    float *z
+)
+{
+    if (x != NULL) *x = playerStartX;
+    if (y != NULL) *y = playerStartY;
+    if (z != NULL) *z = playerStartZ;
+}
+
+// 部屋の移動に合わせてNPCを移動
+void MoveNPCsWithRoom(
+    int roomID,
+    float oldX,
+    float oldZ,
+    float width,
+    float depth,
+    float dx,
+    float dz
+)
+{
+    float minX = oldX - width / 2.0f;
+    float maxX = oldX + width / 2.0f;
+    float minZ = oldZ - depth / 2.0f;
+    float maxZ = oldZ + depth / 2.0f;
+
+    for (int i = 0; i < NPC_COUNT; i++) {
+
+        NPC *npc = &npcs[i];
+
+        // NPCの現在位置が移動前の部屋の中か確認
+        if (npc->x >= minX && npc->x <= maxX &&
+            npc->z >= minZ && npc->z <= maxZ) {
+
+            npc->x += dx;
+            npc->z += dz;
+
+            // 現在位置が部屋内なら、所属情報も維持
+            npc->roomID = roomID;
+        }
+
+        // 移動目標が対象の部屋なら目標座標も移動
+        if (targetRoomIDs[i] == roomID) {
+            npc->targetX += dx;
+            npc->targetZ += dz;
+        }
+    }
+}

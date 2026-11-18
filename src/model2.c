@@ -33,6 +33,7 @@ typedef struct {
 
     float diffuseColor[4];
     int useTexture;
+    int alphaCutout;
 } Mesh;
 
 // モデル情報
@@ -153,11 +154,62 @@ static GLuint LoadTexture(const char *filename)
 }
 
 
-// FBXのテクスチャパスから画像を読み込む
+
+
+// マテリアルからテクスチャを読み込む
 static GLuint LoadMaterialTexture(
-    const struct aiMaterial *material
+    const struct aiMaterial *material,
+    const char *modelFilename
 )
 {
+    struct aiString materialName;
+    GLuint textureID = 0;
+
+    // 自然モデルの場合はマテリアル名に応じてテクスチャを指定
+    if (strstr(modelFilename, "models/nature/FBX/") != NULL &&
+        aiGetMaterialString(
+            material,
+            AI_MATKEY_NAME,
+            &materialName) == AI_SUCCESS) {
+
+        char filename[512];
+
+        // BirchTree_1 の幹
+        if (strcmp(materialName.data, "BirchTree_Bark") == 0) {
+            snprintf(
+                filename,
+                sizeof(filename),
+                "models/nature/Textures/PineTree_Bark.png"
+            );
+        }
+        // BirchTree_1 の葉
+        else if (strcmp(materialName.data, "BirchTree_Leaves") == 0) {
+            snprintf(
+                filename,
+                sizeof(filename),
+                "models/nature/Textures/Bush_Leaves.png"
+            );
+        }
+        // それ以外の自然モデル
+        else {
+            snprintf(
+                filename,
+                sizeof(filename),
+                "models/nature/Textures/%s.png",
+                materialName.data
+            );
+        }
+
+        printf("自然モデル用テクスチャ検索: %s\n", filename);
+
+        textureID = LoadTexture(filename);
+
+        if (textureID != 0) {
+            return textureID;
+        }
+    }
+
+    // 通常モデルのFBXテクスチャを読み込む
     struct aiString texturePath;
 
     if (aiGetMaterialTexture(
@@ -170,47 +222,34 @@ static GLuint LoadMaterialTexture(
             NULL,
             NULL,
             NULL,
-            NULL) != AI_SUCCESS) {
-        return 0;
-    }
+            NULL) == AI_SUCCESS) {
 
-    printf("FBXテクスチャパス: %s\n", texturePath.data);
+        printf("FBXテクスチャパス: %s\n", texturePath.data);
 
-    // この実装では外部画像を読み込む
-    if (texturePath.data[0] == '*') {
-        printf("埋め込みテクスチャには未対応です\n");
-        return 0;
-    }
+        if (texturePath.data[0] != '*') {
+            char filename[512];
 
-    char filename[512];
+            if (strchr(texturePath.data, '/') == NULL &&
+                strchr(texturePath.data, '\\') == NULL) {
 
-    // FBXのパスがファイル名だけならtexturesフォルダを付ける
-    if (strchr(texturePath.data, '/') == NULL &&
-        strchr(texturePath.data, '\\') == NULL) {
+                snprintf(
+                    filename,
+                    sizeof(filename),
+                    "textures/%s",
+                    texturePath.data
+                );
 
-        snprintf(
-            filename,
-            sizeof(filename),
-            "textures/%s",
-            texturePath.data
-        );
+            } else {
+                snprintf(
+                    filename,
+                    sizeof(filename),
+                    "%s",
+                    texturePath.data
+                );
+            }
 
-    } else {
-        snprintf(
-            filename,
-            sizeof(filename),
-            "%s",
-            texturePath.data
-        );
-    }
-
-    GLuint textureID = LoadTexture(filename);
-
-    // texturesフォルダで見つからない場合は元のパスも試す
-    if (textureID == 0 &&
-        strcmp(filename, texturePath.data) != 0) {
-
-        textureID = LoadTexture(texturePath.data);
+            textureID = LoadTexture(filename);
+        }
     }
 
     return textureID;
@@ -266,6 +305,23 @@ int LoadModel(const char *filename)
             const struct aiMaterial *material =
                 scene->mMaterials[mesh->mMaterialIndex];
 
+                struct aiString materialName;
+
+if (aiGetMaterialString(
+        material,
+        AI_MATKEY_NAME,
+        &materialName) == AI_SUCCESS) {
+
+    printf("マテリアル名: %s\n", materialName.data);
+
+    // 葉っぱのマテリアルか判定
+    if (strstr(materialName.data, "Leaves") != NULL) {
+        target->alphaCutout = 1;
+    } else {
+        target->alphaCutout = 0;
+    }
+}
+
             struct aiColor4D diffuseColor;
 
             if (aiGetMaterialColor(
@@ -287,9 +343,10 @@ target->diffuseColor[3] = 1.0f;
 
             printf("テクスチャ数: %u\n", textureCount);
 
-            if (textureCount > 0) {
-                target->textureID = LoadMaterialTexture(material);
-            }
+            target->textureID = LoadMaterialTexture(
+    material,
+    filename
+);
         }
 
         target->useTexture = (target->textureID != 0);
@@ -438,6 +495,9 @@ float modelMatrix[16] = {
     GLint useTextureLocation =
         glGetUniformLocation(shaderProgram, "useTexture");
 
+        GLint alphaCutoutLocation =
+    glGetUniformLocation(shaderProgram, "alphaCutout");
+
     glUniform1i(textureLocation, 0);
 
   glDisable(GL_BLEND);
@@ -463,6 +523,11 @@ glDepthMask(GL_TRUE);
             useTextureLocation,
             mesh->useTexture
         );
+
+        glUniform1i(
+    alphaCutoutLocation,
+    mesh->alphaCutout
+);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, mesh->textureID);
