@@ -6,7 +6,8 @@
 // イベント処理
 void HandleInputEvents(
     int *running,
-    int *mapMode
+    int *mapMode,
+    int *spacePressed
 );
 
 // キーボード入力の取得

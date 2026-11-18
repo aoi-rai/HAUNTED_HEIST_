@@ -26,6 +26,19 @@ typedef struct {
     int selectedNPCID;
     int previousSelectedNPCID;
 
+    // プレイヤーの状態異常タイマー（秒）
+    float blindnessTimer;
+    float immobilizedTimer;
+    float invincibleTimer;
+    float reverseControlsTimer;
+
+    // お宝を所持しているか
+    int hasTreasure;
+
+    // 操作反転中のランダムな方向割り当て
+    // 0=上、1=下、2=左、3=右
+    int movementMap[4];
+
 } GameInitData;
 
 int InitGameWorld(void);

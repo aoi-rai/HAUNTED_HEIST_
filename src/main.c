@@ -25,6 +25,8 @@
 #include "game_update2.h"
 #include "ui2.h"
 #include "game_cleanup2.h"
+#include "remote_player2.h"
+#include "network.h"
 
 // カメラの種類
 #define CAMERA_EDITOR 0
@@ -113,11 +115,17 @@ int main(int argc, char *argv[])
     }
 
     // ------------------------------------
-    // ------------------------------------
     // ゲーム状態の初期化
     // ------------------------------------
     GameInitData game;
     InitGameState(&game, shaderProgram);
+
+if (Network_Connect("127.0.0.1", 50000) < 0) {
+    printf("サーバーへの接続に失敗しました。\n");
+} else {
+    printf("サーバーへの接続に成功しました。プレイヤーID：%d\n",
+           Network_GetPlayerID());
+}
 
     // 既存のゲームループからゲーム状態にアクセスするための別名
     #define playerX game.playerX
@@ -150,7 +158,8 @@ int main(int argc, char *argv[])
         // ====================================
         // イベント処理
         // ====================================
-        HandleInputEvents(&running, &mapMode);
+        int spacePressed = 0;
+        HandleInputEvents(&running, &mapMode, &spacePressed);
 
         // ====================================
         // 経過時間
@@ -175,6 +184,12 @@ int main(int argc, char *argv[])
             MAP_CHANGE_INTERVAL
         );
 
+        // Spaceキーで選択中のNPCにアクション
+// 行動不能中はアクションできない
+if (spacePressed && game.immobilizedTimer <= 0.0f) {
+    HandleNPCAction(&game);
+}
+
         // シェーダー設定
         SetShaderMatrices(
             shaderProgram,
@@ -198,6 +213,16 @@ int main(int argc, char *argv[])
             playerDirection
         );
 
+                // 他プレイヤーの描画
+        DrawRemotePlayers(
+            playerModelID,
+            shaderProgram,
+            playerScale
+        );
+
+        // 盲目状態の画面暗転
+        DrawBlindnessOverlay(game.blindnessTimer);
+
         // UI描画
         DrawGameUI(
             cameraMode,
@@ -213,6 +238,8 @@ int main(int argc, char *argv[])
         // ====================================
         SDL_GL_SwapWindow(window);
     }
+
+Network_Close();
 
     // ========================================
     // 終了処理

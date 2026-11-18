@@ -75,7 +75,40 @@ int Network_Connect(const char *ip, int port)
         return -1;
     }
 
-    printf("サーバーに接続しました。\n");
+        // サーバーからプレイヤーIDを受信
+    char id_buffer[64];
+    int pos = 0;
+    char ch;
+
+    while (pos < (int)sizeof(id_buffer) - 1) {
+        int received = recv(client_fd, &ch, 1, 0);
+
+        if (received <= 0) {
+            perror("プレイヤーID受信");
+            close(client_fd);
+            client_fd = -1;
+            return -1;
+        }
+
+        if (ch == '\n') {
+            break;
+        }
+
+        id_buffer[pos++] = ch;
+    }
+
+    id_buffer[pos] = '\0';
+
+    if (sscanf(id_buffer, "PLAYER_ID:%d", &player_id) != 1) {
+        printf("プレイヤーIDの形式が不正です: %s\n", id_buffer);
+        close(client_fd);
+        client_fd = -1;
+        player_id = -1;
+        return -1;
+    }
+
+    printf("サーバーに接続しました。プレイヤーID:%d\n", player_id);
+
     return 0;
 }
 
@@ -135,7 +168,7 @@ int Network_Receive(char *buffer, int buffer_size)
 }
 
 /*通信終了*/
-void Network_close(void)
+void Network_Close(void)
 {
     if(client_fd != -1){
         close(client_fd);
@@ -154,4 +187,9 @@ void Network_close(void)
     }
     player_id = -1;
     printf("ネットワークを終了しました。\n");
+}
+
+int Network_GetPlayerID(void)
+{
+    return player_id;
 }

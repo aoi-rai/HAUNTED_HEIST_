@@ -7,6 +7,7 @@
 #include "environment2.h"
 #include "camera2.h"
 #include "game_init2.h"
+#include "remote_player2.h"
 
 #define PI 3.14159265f
 
@@ -29,6 +30,9 @@ void InitGameState(
     unsigned int shaderProgram
 )
 {
+    // 他プレイヤー情報の初期化
+    InitRemotePlayers();
+    
     // プレイヤーの初期位置
     game->playerX = 0.0f;
     game->playerY = 0.0f;
@@ -70,6 +74,20 @@ void InitGameState(
     // NPC選択情報
     game->selectedNPCID = -1;
     game->previousSelectedNPCID = -2;
+
+    // 状態異常タイマーの初期化
+    game->blindnessTimer = 0.0f;
+    game->immobilizedTimer = 0.0f;
+    game->invincibleTimer = 0.0f;
+    game->reverseControlsTimer = 0.0f;
+
+    // お宝所持状態の初期化
+    game->hasTreasure = 0;
+
+    // 通常の方向操作
+    for (int i = 0; i < 4; i++) {
+        game->movementMap[i] = i;
+    }
 
     // カメラ行列
     Update3DCamera(

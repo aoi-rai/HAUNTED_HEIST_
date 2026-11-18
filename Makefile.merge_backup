@@ -1,0 +1,58 @@
+CC = gcc
+
+# コンパイル設定
+CFLAGS = -Wall -Wextra -Iinclude `sdl2-config --cflags`
+
+# リンク設定
+LIBS = `sdl2-config --libs` -lSDL2_image -lassimp -lGL -lGLEW -lm
+
+# 実行ファイル名
+TARGET = haunted_heist
+
+# ソースファイル
+SRCS = src/main.c \
+       src/camera2.c \
+       src/map_display2.c \
+       src/environment2.c \
+       src/model2.c \
+       src/map2.c \
+       src/map_random2.c \
+       src/room2.c \
+       src/furniture2.c \
+       src/collision2.c \
+       src/controller1.c \
+       src/shader2.c \
+       src/system_1.c \
+       src/model_init2.c \
+       src/game_init2.c \
+       src/window2.c \
+       src/game_render2.c \
+       src/map_update2.c \
+       src/player2.c \
+       src/input2.c \
+       src/npc2.c \
+       src/target2.c \
+       src/game_update2.c \
+       src/ui2.c \
+       src/game_cleanup2.c \
+       src/network.c
+
+# オブジェクトファイル
+OBJS = $(SRCS:.c=.o)
+
+# ビルド
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(CC) $(OBJS) -o $(TARGET) $(LIBS)
+
+# コンパイル
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# クリーン
+clean:
+	rm -f $(OBJS) $(TARGET)
+
+.PHONY: all clean
+
