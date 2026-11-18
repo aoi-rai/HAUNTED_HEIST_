@@ -6,15 +6,27 @@
 // イベント処理
 void HandleInputEvents(
     int *running,
-    int *mapMode
+    int *mapMode,
+    int *spacePressed
 )
 {
     SDL_Event event;
+
+    *spacePressed = 0;
 
     while (SDL_PollEvent(&event)) {
 
         if (event.type == SDL_QUIT) {
             *running = 0;
+        }
+
+        // SpaceキーでNPCにアクション
+        if (
+            event.type == SDL_KEYDOWN &&
+            event.key.repeat == 0 &&
+            event.key.keysym.sym == SDLK_SPACE
+        ) {
+            *spacePressed = 1;
         }
 
         // Xキーでマップ切り替え

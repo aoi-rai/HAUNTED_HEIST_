@@ -58,6 +58,9 @@ void UpdateNPCs(float deltaTime);
 // NPCの情報を取得
 NPC GetNPC(int npcID);
 
+// NPCのお宝を取得する（成功時1、失敗時0）
+int TryTakeNPC(int npcID);
+
 // プレイヤーの初期位置を取得
 void GetPlayerStartPosition(
     float *x,

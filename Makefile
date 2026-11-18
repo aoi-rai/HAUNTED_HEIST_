@@ -30,6 +30,7 @@ SRCS = src/main.c \
        src/player2.c \
        src/input2.c \
        src/npc2.c \
+       src/remote_player2.c \
        src/target2.c \
        src/game_update2.c \
        src/ui2.c \

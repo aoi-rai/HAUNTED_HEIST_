@@ -13,4 +13,14 @@ void UpdateGameFrame(
     Uint32 mapChangeInterval
 );
 
+// プレイヤーが発覚したとき
+void ApplyDiscoveredEffect(GameInitData *game);
+
+// NPC状態になったとき
+void ApplyNpcStateEffect(GameInitData *game);
+
+// 偽物の宝物を取ったとき
+void ApplyFakeTreasureEffect(GameInitData *game);
+void HandleNPCAction(GameInitData *game);
+
 #endif

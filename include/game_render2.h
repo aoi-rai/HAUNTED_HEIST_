@@ -15,4 +15,6 @@ void DrawGameScene(
     float playerDirection
 );
 
+void DrawBlindnessOverlay(float blindnessTimer);
+
 #endif

@@ -82,3 +82,62 @@ void DrawGameScene(
         );
     }
 }
+
+// 盲目状態の画面暗転
+void DrawBlindnessOverlay(float blindnessTimer)
+{
+    if (blindnessTimer <= 0.0f) {
+        return;
+    }
+
+    GLint viewport[4];
+    GLint previousProgram;
+    GLint previousMatrixMode;
+
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    glGetIntegerv(GL_CURRENT_PROGRAM, &previousProgram);
+    glGetIntegerv(GL_MATRIX_MODE, &previousMatrixMode);
+
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+
+    // シェーダーを解除して固定機能描画に切り替える
+    glUseProgram(0);
+
+    // 画面全体に描画するための設定
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_LIGHTING);
+    glDisable(GL_TEXTURE_2D);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    // 画面座標に合わせた投影行列
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(0, viewport[2], viewport[3], 0, -1, 1);
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    // 半透明の黒い画面を重ねる
+    glColor4f(0.0f, 0.0f, 0.0f, 0.95f);
+
+    glBegin(GL_QUADS);
+        glVertex2f(0.0f, 0.0f);
+        glVertex2f((float)viewport[2], 0.0f);
+        glVertex2f((float)viewport[2], (float)viewport[3]);
+        glVertex2f(0.0f, (float)viewport[3]);
+    glEnd();
+
+    // 行列を元に戻す
+    glPopMatrix();
+
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+
+    glMatrixMode(previousMatrixMode);
+
+    glUseProgram(previousProgram);
+    glPopAttrib();
+}

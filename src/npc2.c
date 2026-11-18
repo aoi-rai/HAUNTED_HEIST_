@@ -524,6 +524,26 @@ NPC GetNPC(int npcID)
     return npcs[npcID];
 }
 
+// NPCのお宝を取得する
+int TryTakeNPC(int npcID)
+{
+    if (npcID < 0 || npcID >= NPC_COUNT) {
+        return 0;
+    }
+
+    // 本物のお宝を持っているNPCだけ取得可能
+    if (npcs[npcID].type != GHOST_REAL_TREASURE) {
+        return 0;
+    }
+
+    // 取得済みなら再取得できない
+    npcs[npcID].type = GHOST_NORMAL;
+
+    printf("NPC %d から本物のお宝を取得しました！\\n", npcID);
+
+    return 1;
+}
+
 // プレイヤー初期位置を取得
 void GetPlayerStartPosition(
     float *x,
