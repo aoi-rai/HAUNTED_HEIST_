@@ -87,6 +87,13 @@ int main(void)
         return 1;
     }
 
+    /*selectで監視できる範囲か確認*/
+    if(server_fd >= FD_SETSIZE){
+        printf("サーバーソケットが監視可能範囲を超えています。\n");
+        close(server_fd);
+        return 1;
+    }
+
     /*アドレス再利用を許可*/
     int opt = 1;
     if(setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0){
@@ -175,7 +182,7 @@ int main(void)
         }
         /*4人接続済みの場合*/
         if(slot == -1){
-            const char *full_message = "Server is full\n";
+            const char *full_message = "SERVER_FULL\n";
             send_all(new_fd, full_message, strlen(full_message));
             close(new_fd);
             printf("プレイヤー数が上限に達したため、接続を拒否しました。\n");
@@ -199,7 +206,7 @@ int main(void)
     /*接続中のプレイヤーからデータを送信*/
     for(int i = 0;i < MAX_PLAYERS; i++){
         int fd = client_fds[i];
-        if(fd != -1 || FD_ISSET(fd, &read_fds)){
+        if(fd == -1 || !FD_ISSET(fd, &read_fds)){
             continue;
         }
         char buffer[BUFFER_SIZE];
