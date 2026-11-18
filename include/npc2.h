@@ -76,4 +76,21 @@ void MoveNPCsWithRoom(
     float dz
 );
 
+int FindTargetNPC(
+    int cameraMode,
+    float playerX,
+    float playerY,
+    float playerZ,
+    float cameraYaw,
+    float cameraPitch
+);
+
+// NPCの描画
+void DrawNPCs(
+    int modelID,
+    unsigned int shaderProgram,
+    int selectedNPCID,
+    float scale
+);
+
 #endif

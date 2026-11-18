@@ -125,3 +125,27 @@ void FreeShaders(unsigned int programID)
         glDeleteProgram(programID);
     }
 }
+
+// シェーダーにカメラ行列を設定
+void SetShaderMatrices(
+    unsigned int shaderProgram,
+    const float view[16],
+    const float projection[16]
+)
+{
+    glUseProgram(shaderProgram);
+
+    glUniformMatrix4fv(
+        glGetUniformLocation(shaderProgram, "view"),
+        1,
+        GL_FALSE,
+        view
+    );
+
+    glUniformMatrix4fv(
+        glGetUniformLocation(shaderProgram, "projection"),
+        1,
+        GL_FALSE,
+        projection
+    );
+}

@@ -11,6 +11,9 @@ TARGET = haunted_heist
 
 # ソースファイル
 SRCS = src/main.c \
+       src/camera2.c \
+       src/map_display2.c \
+       src/environment2.c \
        src/model2.c \
        src/map2.c \
        src/map_random2.c \
@@ -19,7 +22,18 @@ SRCS = src/main.c \
        src/collision2.c \
        src/shader2.c \
        src/system_1.c \
+       src/model_init2.c \
+       src/game_init2.c \
+       src/window2.c \
+       src/game_render2.c \
+       src/map_update2.c \
+       src/player2.c \
+       src/input2.c \
        src/npc2.c \
+       src/target2.c \
+       src/game_update2.c \
+       src/ui2.c \
+       src/game_cleanup2.c \
        src/network.c
 
 # オブジェクトファイル
@@ -40,3 +54,4 @@ clean:
 	rm -f $(OBJS) $(TARGET)
 
 .PHONY: all clean
+

@@ -1,0 +1,27 @@
+#include <stdio.h>
+
+#include "room2.h"
+#include "furniture2.h"
+#include "npc2.h"
+#include "environment2.h"
+#include "game_init2.h"
+
+int InitGameWorld(void)
+{
+    // 部屋の初期化
+    InitRooms();
+
+    // 家具の初期化
+    InitFurniture();
+
+    // NPCの初期化
+    InitNPCs();
+
+    // 環境オブジェクトの初期化
+    if (!InitEnvironment()) {
+        printf("環境オブジェクトの初期化失敗\n");
+        return 0;
+    }
+
+    return 1;
+}

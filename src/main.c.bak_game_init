@@ -1,0 +1,519 @@
+#include <stdio.h>
+#include <SDL2/SDL.h>
+#include <GL/glew.h>
+#include <math.h>
+#include <time.h>
+#include <stdlib.h>
+#include <SDL2/SDL_image.h>
+
+#include "model2.h"
+#include "room2.h"
+#include "shader2.h"
+#include "furniture2.h"
+#include "npc2.h"
+#include "map_random2.h"
+#include "camera2.h"
+#include "map_display2.h"
+#include "environment2.h"
+#include "player2.h"
+#include "map_update2.h"
+#include "game_render2.h"
+#include "game_init2.h"
+#include "model_init2.h"
+
+// カメラの種類
+#define CAMERA_EDITOR 0
+#define CAMERA_PLAYER 1
+
+#define PI 3.14159265f
+
+// ----------------------------------------
+// ベクトルの正規化
+// ----------------------------------------
+int main(int argc, char *argv[])
+{
+    (void)argc;
+    (void)argv;
+
+    // 乱数の初期化
+    srand((unsigned int)time(NULL));
+
+
+    // ------------------------------------
+    // SDLの初期化
+    // ------------------------------------
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        printf("SDL初期化失敗: %s\n", SDL_GetError());
+        return 1;
+    }
+
+    // PNG画像読み込みの初期化
+    if ((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == 0) {
+        printf("SDL_image初期化失敗: %s\n", IMG_GetError());
+        SDL_Quit();
+        return 1;
+    }
+
+    printf("PNG画像読み込みの初期化成功\n");
+
+    // ------------------------------------
+    // OpenGLの設定
+    // ------------------------------------
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+
+    // ウィンドウの作成
+    SDL_Window *window = SDL_CreateWindow(
+        "HAUNTED HEIST",
+        SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED,
+        1000,
+        720,
+        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN
+    );
+
+    if (window == NULL) {
+        printf("ウィンドウ作成失敗: %s\n", SDL_GetError());
+
+        IMG_Quit();
+        SDL_Quit();
+        return 1;
+    }
+
+    // OpenGLコンテキスト作成
+    SDL_GLContext context = SDL_GL_CreateContext(window);
+
+    if (context == NULL) {
+        printf("OpenGL初期化失敗: %s\n", SDL_GetError());
+
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        return 1;
+    }
+
+    // GLEWの初期化
+    GLenum glewResult = glewInit();
+
+    if (glewResult != GLEW_OK) {
+        printf(
+            "GLEW初期化失敗: %s\n",
+            glewGetErrorString(glewResult)
+        );
+
+        SDL_GL_DeleteContext(context);
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        return 1;
+    }
+
+    printf("GLEWの初期化成功\n");
+
+    SDL_GL_SetSwapInterval(1);
+
+    glViewport(0, 0, 1000, 720);
+
+    glClearColor(0.05f, 0.10f, 0.08f, 1.0f);
+
+    glEnable(GL_DEPTH_TEST);
+
+    printf("HAUNTED HEIST 起動\n");
+
+    // ------------------------------------
+    // シェーダーの読み込み
+    // ------------------------------------
+    unsigned int shaderProgram = LoadShaders(
+        "shaders/vertex.glsl",
+        "shaders/fragment.glsl"
+    );
+
+    if (shaderProgram == 0) {
+        printf("シェーダー読み込み失敗\n");
+
+        SDL_GL_DeleteContext(context);
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        return 1;
+    }
+
+    printf("シェーダーの読み込み成功\n");
+
+    // ------------------------------------
+    // マップ変更タイマー
+    // ------------------------------------
+    Uint32 lastMapChange = SDL_GetTicks();
+
+    const Uint32 MAP_CHANGE_INTERVAL = 30000;
+
+    // ------------------------------------
+    // モデルの読み込み
+    int largeRoomID = 0;
+    int smallRoomID = 0;
+    int playerModelID = 0;
+
+    if (!InitGameModels(
+        &largeRoomID,
+        &smallRoomID,
+        &playerModelID
+    )) {
+        FreeModel(largeRoomID);
+        FreeModel(smallRoomID);
+        FreeModel(playerModelID);
+        FreeShaders(shaderProgram);
+
+        SDL_GL_DeleteContext(context);
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        return 1;
+    }
+
+    // ------------------------------------
+    // ゲームワールド全体の初期化
+    // ------------------------------------
+    if (!InitGameWorld()) {
+        FreeModel(largeRoomID);
+        FreeModel(smallRoomID);
+        FreeModel(playerModelID);
+        FreeShaders(shaderProgram);
+
+        SDL_GL_DeleteContext(context);
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        return 1;
+    }
+
+    // ------------------------------------
+    // プレイヤーの初期位置
+    // ------------------------------------
+    float playerX = 0.0f;
+    float playerY = 0.0f;
+    float playerZ = 0.0f;
+
+    GetPlayerStartPosition(
+        &playerX,
+        &playerY,
+        &playerZ
+    );
+
+    // プレイヤーモデルの大きさ
+    float playerScale = 0.01f;
+
+    // プレイヤーの向き
+    float playerDirection = 1.5707963f;
+    float playerTargetDirection = 1.5707963f;
+
+    // 旋回速度
+    const float playerRotationSpeed = PI;
+
+    // ------------------------------------
+    // 部屋の情報を確認
+    // ------------------------------------
+    for (int i = 0; i < ROOM_COUNT; i++) {
+
+        Room room = GetRoom(i);
+
+        printf(
+            "部屋%d: X=%.1f Z=%.1f 幅=%.1f 奥行=%.1f\n",
+            room.roomID,
+            room.x,
+            room.z,
+            room.width,
+            room.depth
+        );
+    }
+
+    // ------------------------------------
+    // カメラ設定
+    // ------------------------------------
+    float view[16];
+    float projection[16];
+
+    int cameraMode = CAMERA_PLAYER;
+
+// マップ表示モード
+// 0 = 周辺マップ
+// 1 = 全体マップ
+int mapMode = 0;
+
+    float cameraYaw = 0.0f;
+    float cameraPitch = 0.0f;
+
+    // NPC選択情報
+    int selectedNPCID = -1;
+    int previousSelectedNPCID = -2;
+
+    // 初期カメラ行列
+    Update3DCamera(
+        view,
+        cameraMode,
+        playerX,
+        playerY,
+        playerZ,
+        cameraYaw,
+        cameraPitch
+    );
+
+    // ------------------------------------
+    // 透視投影行列
+    // ------------------------------------
+    CreatePerspective(
+        projection,
+        60.0f,
+        1000.0f / 720.0f,
+        0.1f,
+        200.0f
+    );
+
+    // ------------------------------------
+    // シェーダー設定
+    // ------------------------------------
+    glUseProgram(shaderProgram);
+
+    glUniformMatrix4fv(
+        glGetUniformLocation(shaderProgram, "view"),
+        1,
+        GL_FALSE,
+        view
+    );
+
+    glUniformMatrix4fv(
+        glGetUniformLocation(shaderProgram, "projection"),
+        1,
+        GL_FALSE,
+        projection
+    );
+
+    // ------------------------------------
+    // メインループ
+    // ------------------------------------
+    int running = 1;
+
+    SDL_Event event;
+
+    Uint32 previousTime = SDL_GetTicks();
+
+    while (running) {
+
+        // ====================================
+        // イベント処理
+        // ====================================
+        while (SDL_PollEvent(&event)) {
+
+            if (event.type == SDL_QUIT) {
+                running = 0;
+            }
+
+            /// Xキーでマップ切り替え
+if (event.type == SDL_KEYDOWN &&
+    event.key.repeat == 0 &&
+    event.key.keysym.sym == SDLK_x) {
+
+    mapMode = 1 - mapMode;
+
+    if (mapMode == 0) {
+        printf("周辺マップに切り替え\n");
+    } else {
+        printf("全体マップに切り替え\n");
+    }
+}
+        }
+
+        // ====================================
+        // 経過時間
+        // ====================================
+        Uint32 currentTime = SDL_GetTicks();
+
+        float deltaTime =
+            (currentTime - previousTime) / 1000.0f;
+
+        previousTime = currentTime;
+
+        // ====================================
+        // NPCの移動更新
+        // ====================================
+        UpdateNPCs(deltaTime);
+
+        // キーボード入力
+        const Uint8 *keys = SDL_GetKeyboardState(NULL);
+
+        // ====================================
+        // WASDでカメラ操作
+        // ====================================
+        if (cameraMode == CAMERA_PLAYER) {
+
+            float cameraRotateSpeed = 2.0f * deltaTime;
+
+            // 左右
+            if (keys[SDL_SCANCODE_D]) {
+                cameraYaw -= cameraRotateSpeed;
+            }
+
+            if (keys[SDL_SCANCODE_A]) {
+                cameraYaw += cameraRotateSpeed;
+            }
+
+            // 上下
+            if (keys[SDL_SCANCODE_W]) {
+                cameraPitch += cameraRotateSpeed;
+            }
+
+            if (keys[SDL_SCANCODE_S]) {
+                cameraPitch -= cameraRotateSpeed;
+            }
+
+            // 上下の回転範囲
+            if (cameraPitch > 1.2f) {
+                cameraPitch = 1.2f;
+            }
+
+            if (cameraPitch < -1.2f) {
+                cameraPitch = -1.2f;
+            }
+        }
+
+        // プレイヤーの移動・旋回更新
+        UpdatePlayerMovement(
+            keys,
+            cameraMode,
+            cameraYaw,
+            deltaTime,
+            playerRotationSpeed,
+            &playerX,
+            &playerZ,
+            &playerDirection,
+            &playerTargetDirection
+        );
+
+        // ====================================
+// 30秒ごとのマップ変更
+        UpdateMap(
+            currentTime,
+            &lastMapChange,
+            MAP_CHANGE_INTERVAL,
+            &playerX,
+            &playerZ
+        );
+
+        // カメラの更新
+        // ====================================
+        Update3DCamera(
+            view,
+            cameraMode,
+            playerX,
+            playerY,
+            playerZ,
+            cameraYaw,
+            cameraPitch
+        );
+
+        // ====================================
+        // NPCの選択対象を更新
+        // ====================================
+        selectedNPCID = FindTargetNPC(
+            cameraMode,
+            playerX,
+            playerY,
+            playerZ,
+            cameraYaw,
+            cameraPitch
+        );
+
+        // 選択対象が変わったときだけ表示
+        if (selectedNPCID != previousSelectedNPCID) {
+
+            if (selectedNPCID >= 0) {
+
+                printf(
+                    "選択中のNPC: %d\n",
+                    selectedNPCID
+                );
+
+            } else {
+
+                if (cameraMode == CAMERA_PLAYER) {
+                    printf("NPCの選択解除\n");
+                }
+            }
+
+            previousSelectedNPCID = selectedNPCID;
+        }
+
+        // ====================================
+        // シェーダー設定
+        // ====================================
+        glUseProgram(shaderProgram);
+
+        glUniformMatrix4fv(
+            glGetUniformLocation(shaderProgram, "view"),
+            1,
+            GL_FALSE,
+            view
+        );
+
+        glUniformMatrix4fv(
+            glGetUniformLocation(shaderProgram, "projection"),
+            1,
+            GL_FALSE,
+            projection
+        );
+
+        // ====================================
+// ゲーム画面の描画
+        DrawGameScene(
+            largeRoomID,
+            smallRoomID,
+            playerModelID,
+            shaderProgram,
+            cameraMode,
+            selectedNPCID,
+            playerX,
+            playerY,
+            playerZ,
+            playerScale,
+            playerDirection
+        );
+
+        // 一人称カメラのとき照準を表示
+if (cameraMode == CAMERA_PLAYER) {
+    DrawReticle(selectedNPCID >= 0);
+}
+
+// ====================================
+// 左側のマップを描画
+// ====================================
+DrawMap(
+    mapMode,
+    playerX,
+    playerZ,
+    cameraYaw
+);
+
+        // ====================================
+        // 画面更新
+        // ====================================
+        SDL_GL_SwapWindow(window);
+    }
+
+    // ========================================
+    // 終了処理
+    // ========================================
+
+    FreeModel(largeRoomID);
+FreeModel(smallRoomID);
+FreeModel(playerModelID);
+    FreeEnvironment();
+
+    FreeShaders(shaderProgram);
+
+    SDL_GL_DeleteContext(context);
+    SDL_DestroyWindow(window);
+
+    IMG_Quit();
+    SDL_Quit();
+
+    return 0;
+}

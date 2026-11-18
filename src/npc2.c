@@ -4,6 +4,34 @@
 
 #include "npc2.h"
 #include "room2.h"
+#include "model2.h"
+#include "camera2.h"
+
+
+// 視線方向のベクトルを正規化
+static void Normalize(float v[3])
+{
+    float length = sqrtf(
+        v[0] * v[0] +
+        v[1] * v[1] +
+        v[2] * v[2]
+    );
+
+    if (length > 0.0f) {
+        v[0] /= length;
+        v[1] /= length;
+        v[2] /= length;
+    }
+}
+
+// 2つのベクトルの内積
+static float Dot(const float a[3], const float b[3])
+{
+    return
+        a[0] * b[0] +
+        a[1] * b[1] +
+        a[2] * b[2];
+}
 
 #define SPAWN_MARGIN 1.0f
 #define MIN_DISTANCE 2.0f
@@ -545,4 +573,138 @@ void MoveNPCsWithRoom(
             npc->targetZ += dz;
         }
     }
+}
+
+
+// NPCの描画
+void DrawNPCs(
+    int modelID,
+    unsigned int shaderProgram,
+    int selectedNPCID,
+    float scale
+)
+{
+    if (modelID == 0) {
+        return;
+    }
+
+    for (int i = 0; i < NPC_COUNT; i++) {
+
+        NPC npc = GetNPC(i);
+
+        // 選択中のNPCだけ輪郭を描画
+        if (i == selectedNPCID) {
+
+            DrawModelAtRotatedOutline(
+                modelID,
+                shaderProgram,
+                npc.x,
+                npc.y,
+                npc.z,
+                scale,
+                npc.direction
+            );
+        }
+
+        // 通常のNPCモデルを描画
+        DrawModelAtRotated(
+            modelID,
+            shaderProgram,
+            npc.x,
+            npc.y,
+            npc.z,
+            scale,
+            npc.direction
+        );
+    }
+}
+
+
+// ----------------------------------------
+// 画面中央の視線上にいるNPCを探す
+// ----------------------------------------
+int FindTargetNPC(
+    int cameraMode,
+    float playerX,
+    float playerY,
+    float playerZ,
+    float cameraYaw,
+    float cameraPitch
+)
+{
+    if (cameraMode != CAMERA_PLAYER) {
+        return -1;
+    }
+
+    // 一人称カメラの位置
+    float eye[3] = {
+        playerX,
+        playerY + 2.0f,
+        playerZ
+    };
+
+    // カメラの視線方向
+    float direction[3] = {
+        -sinf(cameraYaw) * cosf(cameraPitch),
+        sinf(cameraPitch),
+        -cosf(cameraYaw) * cosf(cameraPitch)
+    };
+
+    Normalize(direction);
+
+    int selectedID = -1;
+
+    // 最も近いNPCまでの距離
+    float nearestDistance = 5.0f;
+
+    for (int i = 0; i < NPC_COUNT; i++) {
+
+        NPC npc = GetNPC(i);
+
+        // NPCの中心位置
+        float npcCenter[3] = {
+            npc.x,
+            npc.y + 1.0f,
+            npc.z
+        };
+
+        // カメラからNPCへの方向
+        float toNPC[3] = {
+            npcCenter[0] - eye[0],
+            npcCenter[1] - eye[1],
+            npcCenter[2] - eye[2]
+        };
+
+        // 視線方向への距離
+        float distance = Dot(toNPC, direction);
+
+        // カメラの後ろにいるNPCは対象外
+        if (distance <= 0.0f ||
+            distance >= nearestDistance) {
+            continue;
+        }
+
+        // 視線上の最近接点
+        float closestPoint[3] = {
+            eye[0] + direction[0] * distance,
+            eye[1] + direction[1] * distance,
+            eye[2] + direction[2] * distance
+        };
+
+        // NPC中心と視線の距離
+        float dx = npcCenter[0] - closestPoint[0];
+        float dy = npcCenter[1] - closestPoint[1];
+        float dz = npcCenter[2] - closestPoint[2];
+
+        float distanceSquared =
+            dx * dx + dy * dy + dz * dz;
+
+        // NPCの選択判定
+        if (distanceSquared <= 1.0f) {
+            nearestDistance = distance;
+            selectedID = i;
+        }
+    }
+
+    return selectedID;
 }
