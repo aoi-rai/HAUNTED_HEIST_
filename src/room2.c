@@ -34,6 +34,14 @@ void RandomizeRooms(void)
     RandomizeRoomPositions(rooms);
 }
 
+// 指定した座標に小部屋を配置
+void SetRoomPosition(int roomID, float x, float z)
+{
+    if (roomID <= 0 || roomID >= ROOM_COUNT) return;
+    rooms[roomID].x = x;
+    rooms[roomID].z = z;
+}
+
 // 部屋の情報を取得
 Room GetRoom(int roomID)
 {

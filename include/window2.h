@@ -12,10 +12,22 @@ typedef struct {
     int imageInitialized;
 } WindowContext;
 
-// ウィンドウ・OpenGLの初期化
+// メインウィンドウの初期化
 int InitWindow(WindowContext *app);
 
-// ウィンドウ・SDLの終了処理
+// メインウィンドウを終了
 void CloseWindow(WindowContext *app);
+
+// 共有OpenGLコンテキストを使った待機用ウィンドウの作成
+int InitSharedWindow(
+    WindowContext *primary,
+    WindowContext *secondary
+);
+
+// 待機用ウィンドウだけを終了
+void CloseSharedWindow(
+    WindowContext *primary,
+    WindowContext *secondary
+);
 
 #endif

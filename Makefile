@@ -1,10 +1,10 @@
 CC = gcc
 
 # コンパイル設定
-CFLAGS = -Wall -Wextra -Iinclude `sdl2-config --cflags`
+CFLAGS = -Wall -Wextra -Iinclude `sdl2-config --cflags` `pkg-config --cflags SDL2_ttf`
 
 # リンク設定
-LIBS = `sdl2-config --libs` -lSDL2_image -lassimp -lGL -lGLEW -lm
+LIBS = `sdl2-config --libs` -lSDL2_image -lSDL2_ttf -lassimp -lGL -lGLEW -lm
 
 # 実行ファイル名
 TARGET = haunted_heist
@@ -56,3 +56,15 @@ clean:
 
 .PHONY: all clean
 
+
+
+
+# サーバー
+SERVER_TARGET = server
+SERVER_SRCS = src/server.c
+
+$(SERVER_TARGET): $(SERVER_SRCS)
+	$(CC) -Wall -Wextra $(SERVER_SRCS) -o $(SERVER_TARGET)
+
+.PHONY: server
+server: $(SERVER_TARGET)

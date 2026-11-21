@@ -8,6 +8,19 @@
 
 #define CAMERA_EDITOR 0
 
+// 待機画面専用：森の環境だけを描画
+void DrawWaitingBackground(unsigned int shaderProgram)
+{
+    glViewport(0, 0, 1000, 720);
+
+    glClear(
+        GL_COLOR_BUFFER_BIT |
+        GL_DEPTH_BUFFER_BIT
+    );
+
+    DrawEnvironment(shaderProgram);
+}
+
 void DrawGameScene(
     int largeRoomID,
     int smallRoomID,

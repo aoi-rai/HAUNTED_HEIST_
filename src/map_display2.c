@@ -1,6 +1,7 @@
 #include <GL/glew.h>
 #include <math.h>
 #include "room2.h"
+#include "environment2.h"
 #include "map_display2.h"
 
 void DrawMap(
@@ -27,7 +28,7 @@ void DrawMap(
     } else {
         centerX = 0.0f;
         centerZ = 0.0f;
-        scale = 3.7f;
+        scale = 1.7f;
     }
 
     glUseProgram(0);
@@ -72,6 +73,15 @@ void DrawMap(
         screenHeight - 235,
         220,
         220
+    );
+
+    // 森・塀・門をマップに表示
+    DrawEnvironmentMap(
+        mapLeft + mapSize / 2.0f,
+        mapTop + mapSize / 2.0f,
+        centerX,
+        centerZ,
+        scale
     );
 
     // --------------------------------

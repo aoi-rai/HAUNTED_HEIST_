@@ -139,7 +139,31 @@ void Update3DCamera(
     float center[3];
     float up[3] = {0.0f, 1.0f, 0.0f};
 
-    if (cameraMode == CAMERA_EDITOR) {
+    if (cameraMode == CAMERA_WAITING) {
+
+    // 待機画面専用：正面から門とプレイヤーを見る
+    eye[0] = 0.0f;
+    eye[1] = 3.0f;
+    eye[2] = -86.0f;
+
+    center[0] = 0.0f;
+    center[1] = 3.0f;
+    center[2] = -60.0f;
+}
+ else if (cameraMode == CAMERA_GUIDE) {
+
+        // ガイド画面専用：屋敷の周囲を回るカメラ
+        const float radius = 45.5f;
+
+        eye[0] = radius * sinf(cameraYaw);
+        eye[1] = 32.0f;
+        eye[2] = radius * cosf(cameraYaw);
+
+        center[0] = 0.0f;
+        center[1] = 0.0f;
+        center[2] = 0.0f;
+
+    } else if (cameraMode == CAMERA_EDITOR) {
 
         // 制作・確認用カメラ
         eye[0] = 25.0f;

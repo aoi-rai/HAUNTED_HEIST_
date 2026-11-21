@@ -197,37 +197,91 @@ static void CreateRoomAssignments(int assignments[NPC_COUNT])
     }
 }
 
+// 森の中からランダムな移動位置を取得
+static void GetRandomPositionInForest(float *x, float *z)
+{
+    const float FOREST_MIN_EDGE = 33.0f;
+    const float FOREST_MAX_EDGE = 53.5f;
+
+    for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        float candidateX = RandomFloat(
+            -FOREST_MAX_EDGE, FOREST_MAX_EDGE
+        );
+        float candidateZ = RandomFloat(
+            -FOREST_MAX_EDGE, FOREST_MAX_EDGE
+        );
+
+        // 屋敷の外側にある森の範囲だけを選ぶ
+        if (fmaxf(fabsf(candidateX), fabsf(candidateZ))
+            >= FOREST_MIN_EDGE) {
+            *x = candidateX;
+            *z = candidateZ;
+            return;
+        }
+    }
+
+    // 念のための初期値
+    *x = 40.0f;
+    *z = 0.0f;
+}
+
 // 新しい移動目標を設定
 static void SetNewTarget(int npcID)
 {
     NPC *npc = &npcs[npcID];
 
-    // 現在いる部屋とは別の部屋を選ぶ
-    int roomID = npc->roomID;
+    int targetIsForest = 0;
 
-    if (ROOM_COUNT > 1) {
-        while (roomID == npc->roomID) {
-            roomID = rand() % ROOM_COUNT;
+    // 通常おばけだけ森へ移動できる
+    if (npc->type == GHOST_NORMAL) {
+        if (npc->roomID == -1) {
+            // 森にいる場合：森50%、屋敷50%
+            targetIsForest = (rand() % 100 < 50);
+        }
+        else {
+            // 屋敷にいる場合：森35%、別の部屋65%
+            targetIsForest = (rand() % 100 < 35);
         }
     }
 
-    Room targetRoom = GetRoom(roomID);
+    int roomID = -1;
 
-    // 選んだ部屋の中から移動先を決める
-    GetRandomPositionInRoom(
-        targetRoom,
-        &npc->targetX,
-        &npc->targetZ
-    );
+    if (targetIsForest) {
+        GetRandomPositionInForest(
+            &npc->targetX,
+            &npc->targetZ
+        );
 
-    targetRoomIDs[npcID] = roomID;
+        // -1は森にいることを表す
+        targetRoomIDs[npcID] = -1;
+    }
+    else {
+        // 屋敷の部屋を移動先に選ぶ
+        if (npc->roomID >= 0 && ROOM_COUNT > 1) {
+            do {
+                roomID = rand() % ROOM_COUNT;
+            } while (roomID == npc->roomID);
+        }
+        else {
+            roomID = rand() % ROOM_COUNT;
+        }
 
-   // 移動方向を設定
-float dx = npc->targetX - npc->x;
-float dz = npc->targetZ - npc->z;
+        Room targetRoom = GetRoom(roomID);
 
-// 次に向きたい方向を設定
-npc->targetDirection = atan2f(-dz, dx);
+        GetRandomPositionInRoom(
+            targetRoom,
+            &npc->targetX,
+            &npc->targetZ
+        );
+
+        targetRoomIDs[npcID] = roomID;
+    }
+
+    // 移動方向を設定
+    float dx = npc->targetX - npc->x;
+    float dz = npc->targetZ - npc->z;
+
+    npc->targetDirection = atan2f(-dz, dx);
 
     // 移動にかかる時間を考慮してタイマーを設定
     float distance = sqrtf(dx * dx + dz * dz);
@@ -288,8 +342,23 @@ else if (i < 26) {
 else if (i < 32) {
     npcs[i].behaviorType = NPC_BEHAVIOR_ALL;
 }
+else if (i < 34) {
+    npcs[i].behaviorType = NPC_BEHAVIOR_FLOAT;
+}
+else if (i < 36) {
+    npcs[i].behaviorType = NPC_BEHAVIOR_WALK;
+}
+else if (i < 38) {
+    npcs[i].behaviorType = NPC_BEHAVIOR_WALK_STOP;
+}
+else if (i < 40) {
+    npcs[i].behaviorType = NPC_BEHAVIOR_WALK_FLOAT;
+}
+else if (i < 42) {
+    npcs[i].behaviorType = NPC_BEHAVIOR_ALL;
+}
 else {
-    // お宝関連NPC
+    // 宝箱持ちNPC
     npcs[i].behaviorType = NPC_BEHAVIOR_WALK;
 }
 
@@ -559,35 +628,25 @@ void GetPlayerStartPosition(
 // 部屋の移動に合わせてNPCを移動
 void MoveNPCsWithRoom(
     int roomID,
-    float oldX,
-    float oldZ,
-    float width,
-    float depth,
     float dx,
     float dz
 )
 {
-    float minX = oldX - width / 2.0f;
-    float maxX = oldX + width / 2.0f;
-    float minZ = oldZ - depth / 2.0f;
-    float maxZ = oldZ + depth / 2.0f;
+    if (roomID <= 0 || roomID >= ROOM_COUNT) {
+        return;
+    }
 
     for (int i = 0; i < NPC_COUNT; i++) {
 
         NPC *npc = &npcs[i];
 
-        // NPCの現在位置が移動前の部屋の中か確認
-        if (npc->x >= minX && npc->x <= maxX &&
-            npc->z >= minZ && npc->z <= maxZ) {
-
+        // 現在所属している部屋の移動に合わせる
+        if (npc->roomID == roomID) {
             npc->x += dx;
             npc->z += dz;
-
-            // 現在位置が部屋内なら、所属情報も維持
-            npc->roomID = roomID;
         }
 
-        // 移動目標が対象の部屋なら目標座標も移動
+        // 移動目標の部屋の移動に合わせる
         if (targetRoomIDs[i] == roomID) {
             npc->targetX += dx;
             npc->targetZ += dz;

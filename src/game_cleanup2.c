@@ -8,6 +8,7 @@ void CleanupGame(
     int largeRoomID,
     int smallRoomID,
     int playerModelID,
+    int waitingPlayerModelID,
     unsigned int shaderProgram,
     WindowContext *appWindow
 )
@@ -16,6 +17,11 @@ void CleanupGame(
     FreeModel(largeRoomID);
     FreeModel(smallRoomID);
     FreeModel(playerModelID);
+
+    // 同じモデルを共用している場合は二重解放しない
+    if (waitingPlayerModelID != playerModelID) {
+        FreeModel(waitingPlayerModelID);
+    }
 
     // 環境モデルの解放
     FreeEnvironment();

@@ -40,6 +40,10 @@ typedef struct {
 typedef struct {
     Mesh *meshes;
     unsigned int meshCount;
+    float radiusXZ;
+    float trunkRadiusXZ;
+    float minY;
+    float maxY;
     int loaded;
 } Model;
 
@@ -280,11 +284,30 @@ int LoadModel(const char *filename)
     Model *model = &models[modelCount];
 
     model->meshCount = scene->mNumMeshes;
+    model->radiusXZ = 0.0f;
+    model->trunkRadiusXZ = 0.0f;
+    model->minY = 0.0f;
+    model->maxY = 0.0f;
     model->meshes = calloc(model->meshCount, sizeof(Mesh));
 
     if (model->meshes == NULL) {
         aiReleaseImport(scene);
         return 0;
+    }
+
+    // モデル全体の高さを取得
+    model->minY = 1.0e30f;
+    model->maxY = -1.0e30f;
+
+    for (unsigned int i = 0; i < scene->mNumMeshes; i++) {
+        const struct aiMesh *mesh = scene->mMeshes[i];
+
+        for (unsigned int j = 0; j < mesh->mNumVertices; j++) {
+            float y = mesh->mVertices[j].y;
+
+            if (y < model->minY) model->minY = y;
+            if (y > model->maxY) model->maxY = y;
+        }
     }
 
     for (unsigned int i = 0; i < scene->mNumMeshes; i++) {
@@ -375,6 +398,25 @@ target->diffuseColor[3] = 1.0f;
             vertices[j].position[1] = mesh->mVertices[j].y;
             vertices[j].position[2] = mesh->mVertices[j].z;
 
+            // モデル中心からの水平距離を記録
+            float radius = sqrtf(
+                mesh->mVertices[j].x * mesh->mVertices[j].x +
+                mesh->mVertices[j].z * mesh->mVertices[j].z
+            );
+
+            if (radius > model->radiusXZ) {
+                model->radiusXZ = radius;
+            }
+
+            // モデル下部15％の水平半径を記録
+            float trunkLimit =
+                model->minY + (model->maxY - model->minY) * 0.15f;
+
+            if (mesh->mVertices[j].y <= trunkLimit &&
+                radius > model->trunkRadiusXZ) {
+                model->trunkRadiusXZ = radius;
+            }
+
             if (mesh->mNormals != NULL) {
                 vertices[j].normal[0] = mesh->mNormals[j].x;
                 vertices[j].normal[1] = mesh->mNormals[j].y;
@@ -436,11 +478,49 @@ target->diffuseColor[3] = 1.0f;
     model->loaded = 1;
     modelCount++;
 
+    printf("モデル水平半径: %.3f\\n", model->radiusXZ);
+    printf("モデル下部15%%半径: %.3f\\n", model->trunkRadiusXZ);
+    printf("モデル高さ: %.3f ～ %.3f\\n", model->minY, model->maxY);
+
     aiReleaseImport(scene);
 
     printf("モデル読み込み成功: %s\n", filename);
 
     return modelID;
+}
+
+
+// モデル下部15％の水平半径を取得
+float GetModelTrunkRadiusXZ(int modelID)
+{
+    if (modelID <= 0 || modelID > modelCount) {
+        return 0.0f;
+    }
+
+    Model *model = &models[modelID - 1];
+
+    if (!model->loaded) {
+        return 0.0f;
+    }
+
+    return model->trunkRadiusXZ;
+}
+
+
+// モデルの水平半径を取得
+float GetModelRadiusXZ(int modelID)
+{
+    if (modelID <= 0 || modelID > modelCount) {
+        return 0.0f;
+    }
+
+    Model *model = &models[modelID - 1];
+
+    if (!model->loaded) {
+        return 0.0f;
+    }
+
+    return model->radiusXZ;
 }
 
 
