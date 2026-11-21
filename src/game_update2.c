@@ -141,10 +141,7 @@ void HandleNPCAction(GameInitData *game)
 void UpdateGameFrame(
     GameInitData *game,
     const Uint8 *keys,
-    float deltaTime,
-    Uint32 currentTime,
-    Uint32 *lastMapChange,
-    Uint32 mapChangeInterval
+    float deltaTime
 )
 {
     // NPCの移動更新
@@ -250,15 +247,6 @@ void UpdateGameFrame(
         &game->playerZ,
         &game->playerDirection,
         &game->playerTargetDirection
-    );
-
-    // マップ変更
-    UpdateMap(
-        currentTime,
-        lastMapChange,
-        mapChangeInterval,
-        &game->playerX,
-        &game->playerZ
     );
 
     // カメラ更新

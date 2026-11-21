@@ -7,10 +7,7 @@
 void UpdateGameFrame(
     GameInitData *game,
     const Uint8 *keys,
-    float deltaTime,
-    Uint32 currentTime,
-    Uint32 *lastMapChange,
-    Uint32 mapChangeInterval
+    float deltaTime
 );
 
 // プレイヤーが発覚したとき

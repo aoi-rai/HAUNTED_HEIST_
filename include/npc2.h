@@ -2,9 +2,9 @@
 #ifndef NPC2_H
 #define NPC2_H
 
-#define NPC_COUNT 40
+#define NPC_COUNT 50
 
-#define NORMAL_GHOST_COUNT 32
+#define NORMAL_GHOST_COUNT 42
 #define REAL_TREASURE_GHOST_COUNT 2
 #define FAKE_TREASURE_GHOST_COUNT 6
 
@@ -71,10 +71,6 @@ void GetPlayerStartPosition(
 // 部屋の移動に合わせてNPCを移動
 void MoveNPCsWithRoom(
     int roomID,
-    float oldX,
-    float oldZ,
-    float width,
-    float depth,
     float dx,
     float dz
 );

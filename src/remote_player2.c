@@ -14,6 +14,10 @@ void InitRemotePlayers(void)
         remotePlayers[i].y = 0.0f;
         remotePlayers[i].z = 0.0f;
         remotePlayers[i].direction = 0.0f;
+        remotePlayers[i].targetX = 0.0f;
+        remotePlayers[i].targetY = 0.0f;
+        remotePlayers[i].targetZ = 0.0f;
+        remotePlayers[i].targetDirection = 0.0f;
         remotePlayers[i].connected = 0;
     }
 }
@@ -33,6 +37,7 @@ if (playerID < 1 || playerID > 4) {
 }
 
     int slot = -1;
+    int isNew = 0;
 
     // 登録済みプレイヤーを探す
     for (int i = 0; i < REMOTE_PLAYER_COUNT; i++) {
@@ -48,6 +53,7 @@ if (playerID < 1 || playerID > 4) {
         for (int i = 0; i < REMOTE_PLAYER_COUNT; i++) {
             if (!remotePlayers[i].connected) {
                 slot = i;
+                isNew = 1;
                 break;
             }
         }
@@ -59,13 +65,65 @@ if (playerID < 1 || playerID > 4) {
     }
 
     remotePlayers[slot].playerID = playerID;
-    remotePlayers[slot].x = x;
-    remotePlayers[slot].y = y;
-    remotePlayers[slot].z = z;
-    remotePlayers[slot].direction = direction;
+
+    /*初回受信時は表示位置も目標位置に合わせる*/
+    if (isNew) {
+        remotePlayers[slot].x = x;
+        remotePlayers[slot].y = y;
+        remotePlayers[slot].z = z;
+        remotePlayers[slot].direction = direction;
+    }
+
+    /*2回目以降は目標位置だけ更新する*/
+    remotePlayers[slot].targetX = x;
+    remotePlayers[slot].targetY = y;
+    remotePlayers[slot].targetZ = z;
+    remotePlayers[slot].targetDirection = direction;
+
     remotePlayers[slot].connected = 1;
 
     return 1;
+}
+
+// 他プレイヤーの表示位置を目標位置へ滑らかに近づける
+void UpdateRemotePlayers(float deltaTime)
+{
+    if (deltaTime < 0.0f) {
+        deltaTime = 0.0f;
+    }
+
+    /*補間速度。大きいほど目標位置に早く近づく*/
+    float factor = deltaTime * 12.0f;
+
+    if (factor > 1.0f) {
+        factor = 1.0f;
+    }
+
+    for (int i = 0; i < REMOTE_PLAYER_COUNT; i++) {
+        RemotePlayer *player = &remotePlayers[i];
+
+        if (!player->connected) {
+            continue;
+        }
+
+        player->x += (player->targetX - player->x) * factor;
+        player->y += (player->targetY - player->y) * factor;
+        player->z += (player->targetZ - player->z) * factor;
+
+        /*角度は最短方向へ回転させる*/
+        float angleDiff =
+            player->targetDirection - player->direction;
+
+        while (angleDiff > 180.0f) {
+            angleDiff -= 360.0f;
+        }
+
+        while (angleDiff < -180.0f) {
+            angleDiff += 360.0f;
+        }
+
+        player->direction += angleDiff * factor;
+    }
 }
 
 // プレイヤーIDを指定して切断
@@ -80,6 +138,10 @@ int RemoveRemotePlayer(int playerID)
             remotePlayers[i].y = 0.0f;
             remotePlayers[i].z = 0.0f;
             remotePlayers[i].direction = 0.0f;
+            remotePlayers[i].targetX = 0.0f;
+            remotePlayers[i].targetY = 0.0f;
+            remotePlayers[i].targetZ = 0.0f;
+            remotePlayers[i].targetDirection = 0.0f;
             remotePlayers[i].connected = 0;
 
             return 1;

@@ -7,6 +7,7 @@ void CleanupGame(
     int largeRoomID,
     int smallRoomID,
     int playerModelID,
+    int waitingPlayerModelID,
     unsigned int shaderProgram,
     WindowContext *appWindow
 );

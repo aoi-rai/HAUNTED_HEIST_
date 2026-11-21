@@ -22,4 +22,8 @@ void UpdateCameraInput(
     float *cameraPitch
 );
 
+// キーが押された瞬間を検知
+int WasKeyPressed(SDL_Keycode key);
+
+int WasKeyPressedInWindow(SDL_Keycode key, Uint32 windowID);
 #endif

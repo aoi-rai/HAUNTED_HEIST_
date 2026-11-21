@@ -4,6 +4,12 @@
 // 3Dモデルを読み込む
 int LoadModel(const char *filename);
 
+// モデルの水平半径を取得
+float GetModelRadiusXZ(int modelID);
+
+// モデル下部15％の水平半径を取得
+float GetModelTrunkRadiusXZ(int modelID);
+
 // 通常の描画
 void DrawModelAt(
     int modelID,
@@ -38,7 +44,7 @@ void DrawModelAtRotatedOutline(
 // モデルの解放
 void FreeModel(int modelID);
 
-#define GRASS_COUNT 400
+#define GRASS_COUNT 1000
 
 typedef struct {
     float x;

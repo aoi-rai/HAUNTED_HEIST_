@@ -9,10 +9,18 @@ typedef struct {
     float y;
     float z;
     float direction;
+
+    /*受信した目標位置*/
+    float targetX;
+    float targetY;
+    float targetZ;
+    float targetDirection;
+
     int connected;
 } RemotePlayer;
 
 void InitRemotePlayers(void);
+void UpdateRemotePlayers(float deltaTime);
 
 int SetRemotePlayerState(
     int playerID,

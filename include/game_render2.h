@@ -15,6 +15,8 @@ void DrawGameScene(
     float playerDirection
 );
 
+void DrawWaitingBackground(unsigned int shaderProgram);
+
 void DrawBlindnessOverlay(float blindnessTimer);
 
 #endif

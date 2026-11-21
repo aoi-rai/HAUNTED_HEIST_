@@ -2,6 +2,7 @@
 #include <SDL2/SDL.h>
 
 #include "player2.h"
+#include "environment2.h"
 
 #define CAMERA_PLAYER 1
 #define PI 3.14159265f
@@ -57,7 +58,7 @@ void UpdatePlayerMovement(
     }
 
     // 移動速度
-    float moveSpeed = 5.0f;
+    float moveSpeed = 1.5f;
 
     // 斜め移動の速度調整
     float moveLength = sqrtf(
@@ -66,15 +67,37 @@ void UpdatePlayerMovement(
     );
 
     if (moveLength > 0.0f) {
-        *playerX +=
+        // 1フレーム分の移動量
+        float stepX =
             (moveX / moveLength) *
             moveSpeed *
             deltaTime;
 
-        *playerZ +=
+        float stepZ =
             (moveZ / moveLength) *
             moveSpeed *
             deltaTime;
+
+        // プレイヤーの当たり判定半径
+        const float playerCollisionRadius = 0.25f;
+
+        // X方向だけ先に判定し、通れる場合に移動
+        if (!CheckForestCollision(
+            *playerX + stepX,
+            *playerZ,
+            playerCollisionRadius
+        )) {
+            *playerX += stepX;
+        }
+
+        // 更新後のX座標を使ってZ方向を判定
+        if (!CheckForestCollision(
+            *playerX,
+            *playerZ + stepZ,
+            playerCollisionRadius
+        )) {
+            *playerZ += stepZ;
+        }
 
         // 移動方向を目標角度にする
         *playerTargetDirection = atan2f(

@@ -1,0 +1,106 @@
+#include <stdio.h>
+
+#include "map_update2.h"
+#include "room2.h"
+#include "map_random2.h"
+#include "npc2.h"
+
+// プレイヤーが現在いる部屋を調べる
+static int FindPlayerRoom(
+    float playerX,
+    float playerZ,
+    Room rooms[ROOM_COUNT]
+)
+{
+    for (int i = 1; i < ROOM_COUNT; i++) {
+
+        float minX = rooms[i].x - rooms[i].width / 2.0f;
+        float maxX = rooms[i].x + rooms[i].width / 2.0f;
+        float minZ = rooms[i].z - rooms[i].depth / 2.0f;
+        float maxZ = rooms[i].z + rooms[i].depth / 2.0f;
+
+        if (playerX >= minX && playerX <= maxX &&
+            playerZ >= minZ && playerZ <= maxZ) {
+            return i;
+        }
+    }
+
+    // 小部屋にいなければ中央の大広間
+    return 0;
+}
+
+void UpdateMap(
+    Uint32 currentTime,
+    Uint32 *lastMapChange,
+    Uint32 mapChangeInterval,
+    float *playerX,
+    float *playerZ
+)
+{
+    if (currentTime - *lastMapChange < mapChangeInterval) {
+        return;
+    }
+
+    printf("\n===== マップを変更します =====\n");
+
+    // 配置変更前の部屋情報を保存
+    Room oldRooms[ROOM_COUNT];
+
+    for (int i = 0; i < ROOM_COUNT; i++) {
+        oldRooms[i] = GetRoom(i);
+    }
+
+    // 配置変更前にプレイヤーの所属部屋を確定
+    int playerRoomID = FindPlayerRoom(
+        *playerX,
+        *playerZ,
+        oldRooms
+    );
+
+    // 部屋の配置をランダム変更
+    RandomizeRooms();
+
+    // 各部屋の移動量を計算してNPCを移動
+    for (int i = 1; i < ROOM_COUNT; i++) {
+
+        Room oldRoom = oldRooms[i];
+        Room newRoom = GetRoom(i);
+
+        float dx = newRoom.x - oldRoom.x;
+        float dz = newRoom.z - oldRoom.z;
+
+        // NPCの現在位置と移動目標を部屋IDに合わせて移動
+        MoveNPCsWithRoom(i, dx, dz);
+
+        printf(
+            "部屋%d: X=%.1f Z=%.1f 移動量X=%.1f Z=%.1f\n",
+            i,
+            newRoom.x,
+            newRoom.z,
+            dx,
+            dz
+        );
+    }
+
+    // プレイヤーも所属している部屋と一緒に移動
+    if (playerRoomID > 0) {
+
+        Room oldRoom = oldRooms[playerRoomID];
+        Room newRoom = GetRoom(playerRoomID);
+
+        float dx = newRoom.x - oldRoom.x;
+        float dz = newRoom.z - oldRoom.z;
+
+        *playerX += dx;
+        *playerZ += dz;
+
+        printf(
+            "プレイヤーが部屋%dと一緒に移動しました\n",
+            playerRoomID
+        );
+    }
+
+    *lastMapChange = currentTime;
+
+    printf("===== マップ変更完了 =====\n");
+}

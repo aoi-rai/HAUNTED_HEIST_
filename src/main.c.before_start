@@ -1,0 +1,734 @@
+#include <stdio.h>
+#include <SDL2/SDL.h>
+#include <GL/glew.h>
+#include <math.h>
+#include <time.h>
+#include <stdlib.h>
+
+#include "model2.h"
+#include "room2.h"
+#include "shader2.h"
+#include "furniture2.h"
+#include "npc2.h"
+#include "map_random2.h"
+#include "camera2.h"
+#include "map_display2.h"
+#include "environment2.h"
+#include "player2.h"
+#include "map_update2.h"
+#include "game_render2.h"
+#include "game_init2.h"
+#include "model_init2.h"
+#include "window2.h"
+#include "input2.h"
+#include "target2.h"
+#include "game_update2.h"
+#include "ui2.h"
+#include "game_cleanup2.h"
+#include "remote_player2.h"
+#include "network.h"
+
+// カメラの種類
+#define CAMERA_EDITOR 0
+#define CAMERA_PLAYER 1
+
+#define PI 3.14159265f
+
+// 画面状態
+#define SCREEN_TITLE  0
+#define SCREEN_GUIDE  1
+#define SCREEN_CONTROLS 2
+#define SCREEN_CONCEPT  3
+#define SCREEN_GAME   4
+#define SCREEN_WAITING 5
+
+// ----------------------------------------
+// ベクトルの正規化
+// ----------------------------------------
+int main(int argc, char *argv[])
+{
+    (void)argc;
+    (void)argv;
+
+    // 乱数の初期化
+    srand((unsigned int)time(NULL));
+
+
+    // ------------------------------------
+    // ウィンドウ・OpenGLの初期化
+    WindowContext appWindow;
+
+    if (!InitWindow(&appWindow)) {
+        return 1;
+    }
+
+    // 既存処理との互換性のため変数名を維持
+    SDL_Window *window = appWindow.window;
+
+    // ------------------------------------
+    // シェーダーの読み込み
+    // ------------------------------------
+    unsigned int shaderProgram = LoadShaders(
+        "shaders/vertex.glsl",
+        "shaders/fragment.glsl"
+    );
+
+    if (shaderProgram == 0) {
+        printf("シェーダー読み込み失敗\n");
+
+        CloseWindow(&appWindow);
+        return 1;
+    }
+
+    printf("シェーダーの読み込み成功\n");
+
+    // ------------------------------------
+    // マップ変更タイマー
+    // ------------------------------------
+    Uint32 lastMapChange = SDL_GetTicks();
+
+    const Uint32 MAP_CHANGE_INTERVAL = 30000;
+
+    // ------------------------------------
+    // モデルの読み込み
+    int largeRoomID = 0;
+    int smallRoomID = 0;
+    int playerModelID = 0;
+
+    if (!InitGameModels(
+        &largeRoomID,
+        &smallRoomID,
+        &playerModelID
+    )) {
+        FreeModel(largeRoomID);
+        FreeModel(smallRoomID);
+        FreeModel(playerModelID);
+        FreeShaders(shaderProgram);
+
+        CloseWindow(&appWindow);
+        return 1;
+    }
+
+    // ------------------------------------
+    // ゲームワールド全体の初期化
+    // ------------------------------------
+    if (!InitGameWorld()) {
+        FreeModel(largeRoomID);
+        FreeModel(smallRoomID);
+        FreeModel(playerModelID);
+        FreeShaders(shaderProgram);
+
+        CloseWindow(&appWindow);
+        return 1;
+    }
+
+    // ------------------------------------
+    // ゲーム状態の初期化
+    // ------------------------------------
+    GameInitData game;
+    InitGameState(&game, shaderProgram);
+
+    // UIの初期化
+if (!InitUI()) {
+    printf("UIの初期化に失敗しました。\n");
+
+    CleanupGame(
+        largeRoomID,
+        smallRoomID,
+        playerModelID,
+        shaderProgram,
+        &appWindow
+    );
+
+    return 1;
+}
+
+int networkConnected = 0;
+
+/*待機画面の準備状態*/
+int waitingPlayerCount = 0;
+int waitingReady[4] = {0, 0, 0, 0};
+int waitingCanStart = 0;
+int myReady = 0;
+
+
+    // 既存のゲームループからゲーム状態にアクセスするための別名
+    #define playerX game.playerX
+    #define playerY game.playerY
+    #define playerZ game.playerZ
+    #define playerScale game.playerScale
+    #define playerDirection game.playerDirection
+    #define playerTargetDirection game.playerTargetDirection
+    #define playerRotationSpeed game.playerRotationSpeed
+
+    #define view game.view
+    #define projection game.projection
+    #define cameraMode game.cameraMode
+    #define cameraYaw game.cameraYaw
+    #define cameraPitch game.cameraPitch
+
+    #define mapMode game.mapMode
+    #define selectedNPCID game.selectedNPCID
+    #define previousSelectedNPCID game.previousSelectedNPCID
+
+    // メインループ
+    // ------------------------------------
+    int running = 1;
+
+    // 最初はタイトル画面
+int screenState = SCREEN_TITLE;
+
+// ガイド画面の選択位置
+// 0: 操作説明  1: コンセプト  2: 次へ
+int guideSelection = 0;
+
+    Uint32 previousTime = SDL_GetTicks();
+    Uint32 lastNetworkSend = SDL_GetTicks();
+
+    while (running) {
+
+        // ====================================
+        // イベント処理
+        // ====================================
+        int spacePressed = 0;
+        HandleInputEvents(&running, &mapMode, &spacePressed);
+
+        // ====================================
+        // 経過時間
+        // ====================================
+        Uint32 currentTime = SDL_GetTicks();
+
+        float deltaTime =
+            (currentTime - previousTime) / 1000.0f;
+
+        previousTime = currentTime;
+
+        // キーボード入力
+const Uint8 *keys = GetInputKeys();
+
+// ====================================
+// タイトル画面
+// ====================================
+if (screenState == SCREEN_TITLE) {
+
+    if (WasKeyPressed(SDLK_RETURN) ||
+        WasKeyPressed(SDLK_KP_ENTER)) {
+        screenState = SCREEN_GUIDE;
+    }
+
+    glViewport(0, 0, 1000, 720);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    DrawTextCentered("HAUNTED HEIST", 250, 64);
+    DrawTextCentered("PRESS ENTER", 430, 28);
+
+    SDL_GL_SwapWindow(window);
+    continue;
+}
+
+// ====================================
+// ガイド画面
+// ====================================
+if (screenState == SCREEN_GUIDE) {
+
+    // 左右キーで看板を選択
+    if (WasKeyPressed(SDLK_LEFT)) {
+        guideSelection--;
+
+        if (guideSelection < 0) {
+            guideSelection = 2;
+        }
+    }
+
+    if (WasKeyPressed(SDLK_RIGHT)) {
+        guideSelection++;
+
+        if (guideSelection > 2) {
+            guideSelection = 0;
+        }
+    }
+
+    // Enterキーで選択した画面へ移動
+if (WasKeyPressed(SDLK_RETURN) ||
+    WasKeyPressed(SDLK_KP_ENTER)) {
+
+    if (guideSelection == 0) {
+        screenState = SCREEN_CONTROLS;
+    }
+    else if (guideSelection == 1) {
+        screenState = SCREEN_CONCEPT;
+    }
+    else if (guideSelection == 2) {
+        screenState = SCREEN_WAITING;
+
+        if (!networkConnected) {
+            if (Network_Connect("127.0.0.1", 50000) < 0) {
+                printf("サーバーへの接続に失敗しました。\n");
+            } else {
+                networkConnected = 1;
+
+                printf("サーバーへの接続に成功しました。プレイヤーID：%d\n",
+                       Network_GetPlayerID());
+            }
+        }
+    }
+}
+
+    // 3D背景を描画
+    SetShaderMatrices(
+        shaderProgram,
+        view,
+        projection
+    );
+
+    DrawGameScene(
+        largeRoomID,
+        smallRoomID,
+        playerModelID,
+        shaderProgram,
+        CAMERA_EDITOR,
+        -1,
+        playerX,
+        playerY,
+        playerZ,
+        playerScale,
+        playerDirection
+    );
+
+    // 2D看板を重ねて表示
+    DrawTextCentered("GUIDE", 100, 48);
+
+    DrawText2D(
+        guideSelection == 0 ? "> 操作説明 <" : "  操作説明  ",
+        180, 400, 30
+    );
+
+    DrawText2D(
+        guideSelection == 1 ? "> コンセプト <" : "  コンセプト  ",
+        430, 400, 30
+    );
+
+    DrawText2D(
+        guideSelection == 2 ? "> 次へ <" : "  次へ  ",
+        720, 400, 30
+    );
+
+    DrawTextCentered("LEFT / RIGHT : SELECT", 550, 20);
+    DrawTextCentered("ENTER : DECIDE", 590, 20);
+
+    SDL_GL_SwapWindow(window);
+    continue;
+}
+
+// ====================================
+// 待機画面
+// ====================================
+if (screenState == SCREEN_WAITING) {
+
+    /*ESCキーでガイド画面に戻る*/
+    if (WasKeyPressed(SDLK_ESCAPE)) {
+        if (networkConnected && myReady) {
+            Network_Send("UNREADY\n");
+            myReady = 0;
+        }
+
+        screenState = SCREEN_GUIDE;
+    }
+
+    /*接続失敗時はRキーで再接続*/
+    if (!networkConnected && WasKeyPressed(SDLK_r)) {
+        if (Network_Connect("127.0.0.1", 50000) < 0) {
+            printf("サーバーへの再接続に失敗しました。\n");
+        } else {
+            networkConnected = 1;
+            myReady = 0;
+            waitingPlayerCount = 0;
+            waitingCanStart = 0;
+
+            for (int i = 0; i < 4; i++) {
+                waitingReady[i] = 0;
+            }
+
+            printf("サーバーへの再接続に成功しました。プレイヤーID：%d\n",
+                   Network_GetPlayerID());
+        }
+    }
+
+    /*サーバーから待機状態を受信*/
+    if (networkConnected) {
+        char receiveBuffer[256];
+        int received;
+
+        while ((received = Network_Receive(
+            receiveBuffer,
+            sizeof(receiveBuffer)
+        )) > 0) {
+
+            printf("[CLIENT RECEIVE] %s\n", receiveBuffer);
+
+            int count;
+            int ready1, ready2, ready3, ready4;
+            int canStart;
+
+            /*待機状態の通知*/
+            if (sscanf(
+                receiveBuffer,
+                "STATUS,%d,%d,%d,%d,%d,%d",
+                &count,
+                &ready1,
+                &ready2,
+                &ready3,
+                &ready4,
+                &canStart
+            ) == 6) {
+
+                waitingPlayerCount = count;
+                waitingReady[0] = ready1;
+                waitingReady[1] = ready2;
+                waitingReady[2] = ready3;
+                waitingReady[3] = ready4;
+                waitingCanStart = canStart;
+
+                myReady = waitingReady[Network_GetPlayerID() - 1];
+            }
+        }
+
+        if (received < 0) {
+            printf("サーバーとの通信が終了しました。\n");
+            networkConnected = 0;
+            myReady = 0;
+            waitingCanStart = 0;
+        }
+    }
+
+    /*Rキーで準備完了・準備解除*/
+    if (networkConnected && WasKeyPressed(SDLK_r)) {
+        if (myReady) {
+            if (Network_Send("UNREADY\n") < 0) {
+                networkConnected = 0;
+                myReady = 0;
+            }
+        } else {
+            if (Network_Send("READY\n") < 0) {
+                networkConnected = 0;
+            }
+        }
+    }
+
+    /*全員準備完了後、Enterキーでゲーム開始*/
+    if (networkConnected &&
+        waitingCanStart &&
+        (WasKeyPressed(SDLK_RETURN) ||
+         WasKeyPressed(SDLK_KP_ENTER))) {
+
+        printf("全員の準備が完了しました。ゲームを開始します。\n");
+        screenState = SCREEN_GAME;
+        continue;
+    }
+
+    /*3Dのお化け屋敷を背景に表示*/
+    SetShaderMatrices(
+        shaderProgram,
+        view,
+        projection
+    );
+
+    DrawGameScene(
+        largeRoomID,
+        smallRoomID,
+        playerModelID,
+        shaderProgram,
+        CAMERA_EDITOR,
+        -1,
+        playerX,
+        playerY,
+        playerZ,
+        playerScale,
+        playerDirection
+    );
+
+    /*待機画面の表示*/
+    DrawTextCentered("WAITING ROOM", 75, 48);
+
+    if (networkConnected) {
+        char text[128];
+
+        snprintf(
+            text,
+            sizeof(text),
+            "PLAYER ID : %d",
+            Network_GetPlayerID()
+        );
+        DrawTextCentered(text, 145, 26);
+
+        snprintf(
+            text,
+            sizeof(text),
+            "参加人数 : %d / 4",
+            waitingPlayerCount
+        );
+        DrawTextCentered(text, 205, 26);
+
+        /*各プレイヤーの準備状態*/
+        for (int i = 0; i < 4; i++) {
+            if (waitingReady[i]) {
+                snprintf(text, sizeof(text),
+                         "PLAYER %d : READY", i + 1);
+            } else {
+                snprintf(text, sizeof(text),
+                         "PLAYER %d : WAITING", i + 1);
+            }
+
+            DrawTextCentered(text, 275 + i * 55, 24);
+        }
+
+        if (myReady) {
+            DrawTextCentered("あなたは準備完了です！", 510, 26);
+        } else {
+            DrawTextCentered("R : 準備完了にする", 510, 26);
+        }
+
+        if (waitingCanStart) {
+            DrawTextCentered("全員準備完了！", 565, 28);
+            DrawTextCentered("ENTER : ゲーム開始", 610, 24);
+        } else {
+            DrawTextCentered("全員の準備を待っています...", 565, 24);
+        }
+    }
+    else {
+        DrawTextCentered("サーバーに接続できませんでした", 300, 28);
+        DrawTextCentered("R : 再接続", 380, 26);
+    }
+
+    DrawTextCentered("ESC : ガイドに戻る", 675, 20);
+
+    SDL_GL_SwapWindow(window);
+    continue;
+}
+
+// ====================================
+// 操作説明画面
+// ====================================
+if (screenState == SCREEN_CONTROLS) {
+
+    glViewport(0, 0, 1000, 720);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    DrawTextCentered("操作説明", 100, 48);
+
+    DrawTextCentered("W : 前進", 230, 28);
+    DrawTextCentered("S : 後退", 290, 28);
+    DrawTextCentered("A : 左移動", 350, 28);
+    DrawTextCentered("D : 右移動", 410, 28);
+    DrawTextCentered("SPACE : お化けにアクション", 470, 28);
+    DrawTextCentered("X : マップ切り替え", 530, 28);
+
+    DrawTextCentered("ENTER : ガイドに戻る", 640, 22);
+
+    SDL_GL_SwapWindow(window);
+
+    if (WasKeyPressed(SDLK_RETURN) ||
+        WasKeyPressed(SDLK_KP_ENTER)) {
+        screenState = SCREEN_GUIDE;
+    }
+
+    continue;
+}
+
+// ====================================
+// コンセプト画面
+// ====================================
+if (screenState == SCREEN_CONCEPT) {
+
+    glViewport(0, 0, 1000, 720);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    DrawTextCentered("CONCEPT", 100, 48);
+
+    DrawTextCentered("お化け屋敷に隠された宝物を探し出せ！", 250, 28);
+    DrawTextCentered("プレイヤーはNPCのお化けに紛れて行動する。", 330, 24);
+    DrawTextCentered("怪しいお化けを見つけて、シーツを剥がそう！", 390, 24);
+    DrawTextCentered("宝物を手に入れたら、出口を目指そう！", 450, 24);
+
+    DrawTextCentered("ENTER : ガイドに戻る", 640, 22);
+
+    SDL_GL_SwapWindow(window);
+
+    if (WasKeyPressed(SDLK_RETURN) ||
+        WasKeyPressed(SDLK_KP_ENTER)) {
+        screenState = SCREEN_GUIDE;
+    }
+
+    continue;
+}
+
+// ====================================
+// ここから下は既存のゲーム処理
+// ====================================
+
+// ゲーム状態の更新
+UpdateGameFrame(
+            &game,
+            keys,
+            deltaTime,
+            currentTime,
+            &lastMapChange,
+            MAP_CHANGE_INTERVAL
+        );
+
+        // ====================================
+// ネットワーク通信
+// ====================================
+if (networkConnected) {
+
+    // 100ミリ秒ごとに自分の位置を送信
+    if (currentTime - lastNetworkSend >= 100) {
+
+        char sendBuffer[160];
+
+        snprintf(
+            sendBuffer,
+            sizeof(sendBuffer),
+            "STATE,%d,%.3f,%.3f,%.3f,%.3f\n",
+            Network_GetPlayerID(),
+            playerX,
+            playerY,
+            playerZ,
+            playerDirection
+        );
+
+        if (Network_Send(sendBuffer) < 0) {
+            printf("位置情報の送信に失敗しました。\n");
+            networkConnected = 0;
+        }
+
+        lastNetworkSend = currentTime;
+    }
+
+    // 他プレイヤーの位置情報を受信
+    if (networkConnected) {
+        char receiveBuffer[256];
+        int received;
+
+        while ((received = Network_Receive(
+            receiveBuffer,
+            sizeof(receiveBuffer)
+        )) > 0) {
+
+            int senderID;
+            int dataPlayerID;
+
+            float x, y, z, direction;
+
+            // サーバーから届く形式：
+            // Player 2: STATE,2,1.000,0.000,2.000,90.000
+
+            if (sscanf(
+                receiveBuffer,
+                "Player %d: STATE,%d,%f,%f,%f,%f",
+                &senderID,
+                &dataPlayerID,
+                &x,
+                &y,
+                &z,
+                &direction
+            ) == 6) {
+
+                // 自分以外のプレイヤーだけ更新
+                if (senderID != Network_GetPlayerID()
+                    && senderID == dataPlayerID
+                    && senderID >= 1
+                    && senderID <= 4) {
+
+                    SetRemotePlayerState(
+                        senderID,
+                        x,
+                        y,
+                        z,
+                        direction
+                    );
+                }
+            }
+        }
+
+        if (received < 0) {
+            printf("サーバーとの通信が終了しました。\n");
+            networkConnected = 0;
+        }
+    }
+}
+
+        // Spaceキーで選択中のNPCにアクション
+// 行動不能中はアクションできない
+if (spacePressed && game.immobilizedTimer <= 0.0f) {
+    HandleNPCAction(&game);
+}
+
+        // シェーダー設定
+        SetShaderMatrices(
+            shaderProgram,
+            view,
+            projection
+        );
+
+        // ====================================
+// ゲーム画面の描画
+        DrawGameScene(
+            largeRoomID,
+            smallRoomID,
+            playerModelID,
+            shaderProgram,
+            cameraMode,
+            selectedNPCID,
+            playerX,
+            playerY,
+            playerZ,
+            playerScale,
+            playerDirection
+        );
+
+                // 他プレイヤーの描画
+        DrawRemotePlayers(
+            playerModelID,
+            shaderProgram,
+            playerScale
+        );
+
+        // 盲目状態の画面暗転
+        DrawBlindnessOverlay(game.blindnessTimer);
+
+        // UI描画
+        DrawGameUI(
+            cameraMode,
+            selectedNPCID,
+            mapMode,
+            playerX,
+            playerZ,
+            cameraYaw
+        );
+
+        // ====================================
+        // 画面更新
+        // ====================================
+        SDL_GL_SwapWindow(window);
+    }
+
+Network_Close();
+
+// UIの終了処理
+CleanupUI();
+
+    // ========================================
+    // 終了処理
+    // ========================================
+
+    CleanupGame(
+        largeRoomID,
+        smallRoomID,
+        playerModelID,
+        shaderProgram,
+        &appWindow
+    );
+
+    return 0;
+}

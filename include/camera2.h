@@ -3,6 +3,8 @@
 
 #define CAMERA_EDITOR 0
 #define CAMERA_PLAYER 1
+#define CAMERA_GUIDE 2
+#define CAMERA_WAITING 3
 
 void CreatePerspective(
     float matrix[16],
